@@ -1,5 +1,5 @@
 SLASH_COMF1 = "/comf"
-local cfVersion = "v0.14"
+local cfVersion = "v0.15"
 local CommFlareDB = _G.CommFlareDB or {}
 
 -- localize stuff
@@ -161,34 +161,60 @@ local function CommunityFlare_Settings_CreateCheckBox(parent, field, text)
 end
 
 -- set value for auto assist option
-local function CommunityFlare_DropDown_AutoAssist_OnClick(self, arg1)
-	-- find option being set
-	for i=1, #autoAssistOptions do
-		if (self.value == autoAssistOptions[i].value) then
-			CommFlareDB["communityAutoAssist"] = autoAssistOptions[i].value
-		end
+local function CommunityFlare_DropDown_OnClick(self, arg1, arg2)
+	-- AutoAssistDropDown?
+	local field = nil
+	local options = {}
+	if (arg1 == "autoAssistOptions") then
+		-- initialize stuff
+		field = "communityAutoAssist"
+		options = autoAssistOptions
 	end
+
+	-- has field and options?
+	if (field and options and (#options > 0)) then
+		-- update setting
+		CommFlareDB[field] = options[arg2].value
+	end
+
+	-- refresh settings
 	Community_Flare_Settings_Refresh()
 end
 
 -- initialize auto assist drop down
-local function CommunityFlare_DropDown_AutoAssist_Initialize(dropDown, level, ...)
+local function CommunityFlare_DropDown_Initialize(dropDown, level, ...)
 	-- create the drop down
+	local name = dropDown:GetName()
 	local info = UIDropDownMenu_CreateInfo()
-	info.func = CommunityFlare_DropDown_AutoAssist_OnClick
-	for i=1, #autoAssistOptions do
-		info.text = autoAssistOptions[i].text
-		info.arg1 = i
-		info.arg2 = "autoAssistOptions"
-		info.value = autoAssistOptions[i].value
-		if (CommFlareDB["communityAutoAssist"] == autoAssistOptions[i].value) then
-			info.checked = 1
-			UIDropDownMenu_SetText(dropDown, autoAssistOptions[i].text)
-			dropDown.value = autoAssistOptions[i].value
-		else
-			info.checked = nil
+	info.owner = dropDown
+	info.func = CommunityFlare_DropDown_OnClick
+
+	-- AutoAssistDropDown?
+	local field = nil
+	local options = {}
+	if (name == "AutoAssistDropDown") then
+		-- initialize stuff
+		field = "communityAutoAssist"
+		options = autoAssistOptions
+	end
+
+	-- has field and options?
+	if (field and options and (#options > 0)) then
+		-- create buttons
+		for i=1, #options do
+			info.text = options[i].text
+			info.arg1 = "autoAssistOptions"
+			info.arg2 = i
+			info.value = options[i].value
+			if (CommFlareDB[field] == options[i].value) then
+				info.checked = 1
+				UIDropDownMenu_SetText(dropDown, options[i].text)
+				dropDown.value = options[i].value
+			else
+				info.checked = nil
+			end
+			UIDropDownMenu_AddButton(info)
 		end
-		UIDropDownMenu_AddButton(info)
 	end
 end
 
@@ -200,8 +226,8 @@ local function CommunityFlare_Settings_CreateDropDown(parent, name, menuList)
 	position = position - 30
 	dropDown.menuList = autoAssistOptions
 	UIDropDownMenu_SetWidth(dropDown, 150)
-	UIDropDownMenu_Initialize(dropDown, CommunityFlare_DropDown_AutoAssist_Initialize)
-	UIDropDownMenu_SetText(dropDown, name)
+	UIDropDownMenu_Initialize(dropDown, CommunityFlare_DropDown_Initialize)
+	UIDropDownMenu_SetText(dropDown, "Choose One")
 	return dropDown
 end
 
@@ -234,7 +260,7 @@ header:SetText("Auto assist inside battlegrounds (If you are raid leader)")
 position = position - 20
 
 -- create dropdowns
-CF_Dropdown = CommunityFlare_Settings_CreateDropDown(options, "Auto assist", "autoAssistOptions")
+CF_Dropdown = CommunityFlare_Settings_CreateDropDown(options, "AutoAssistDropDown", "autoAssistOptions")
 
 -- register addon category in settings panel
 options:SetScript("OnShow", Community_Flare_Settings_Refresh)
@@ -658,6 +684,8 @@ local function CommunityFlare_IsHealer(spec)
 		return true
 	elseif (spec == "Mistweaver") then
 		return true
+	elseif (spec == "Preservation") then
+		return true
 	elseif (spec == "Restoration") then
 		return true
 	end
@@ -844,17 +872,15 @@ local function CommunityFlare_AutoAcceptQueues()
 		-- auto queueable?
 		local autoQueue = false
 		if (autoQueueable == true) then
+			-- always auto queue?
 			if (CommFlareDB["alwaysAutoQueue"] == true) then
 				autoQueue = true
+			-- community auto queue?
 			elseif (CommFlareDB["communityAutoQueue"] == true) then
 				local player = CommunityFlare_FindClubMemberByName(CommunityFlare_GetPartyLeader())
 				if (player ~= nil) then
 					autoQueue = true
 				end
-			end
-		else
-			-- larger raid?
-			if (GetNumGroupMembers() > 10) then
 			end
 		end
 
@@ -1230,11 +1256,24 @@ local function CommunityFlare_EventHandler(self, event, ...)
 			SendChatMessage("I currently have the Mercenary Contract BUFF! (Are we mercing?)", "PARTY")
 		end
 
-		-- check if should auto queue
-		local autoQueue = false
+		-- capable of auto queuing?
+		local autoQueueable = false
 		if (not IsInRaid()) then
+			autoQueueable = true
+		else
+			-- larger than rated battleground count?
+			if (GetNumGroupMembers() > 10) then
+				autoQueueable = true
+			end
+		end
+
+		-- auto queueable?
+		local autoQueue = false
+		if (autoQueueable == true) then
+			-- always auto queue?
 			if (CommFlareDB["alwaysAutoQueue"] == true) then
 				autoQueue = true
+			-- community auto queue?
 			elseif (CommFlareDB["communityAutoQueue"] == true) then
 				if (CommunityFlare_FindClubMemberByName(sender) ~= nil) then
 					autoQueue = true

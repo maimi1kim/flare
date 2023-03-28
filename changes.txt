@@ -1,3 +1,7 @@
+v0.15 features:
+-Updated framework for drop down setting boxes.
+-Bumped TOC to v10.0.2
+
 v0.14 features:
 -Added new setting to automatically give assist to none, leaders only or all SAS members. (Only works if you are the group leader.)
 
