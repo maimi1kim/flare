@@ -407,12 +407,13 @@ CommFlare.CF = {
 	WG = {}
 }
 
--- initialize leaders
+-- sas leaders
 local sasLeaders = {
 	"Cinco-CenarionCircle",
 	"Cincõ-BlackwaterRaiders",
 	"Mesostealthy-Dentarg",
 	"Lifestooport-Dentarg",
+	"Owmyeyez-Dentarg",
 	"Revoker-Dentarg",
 	"Shotdasherif-Dentarg",
 	"Angelsong-BlackwaterRaiders",
@@ -422,6 +423,15 @@ local sasLeaders = {
 	"Leyoterk-CenarionCircle",
 	"Krolak-Proudmoore",
 	"Greenbeans-CenarionCircle"
+}
+
+-- meso!
+local mesoChars = {
+	["Mesostealthy"] = true,
+	["Lifestooport"] = true,
+	["Owmyeyez"] = true,
+	["Revoker"] = true,
+	["Shotdasherif"] = true,
 }
 
 -- epic battlegrounds
@@ -576,7 +586,7 @@ local function CommunityFlare_IsMesostealthy(player)
 	local name, realm = strsplit("-", player, 2)
 	if (realm == "Dentarg") then
 		-- meso's characters
-		if ((name == "Mesostealthy") or (name == "Lifestooport") or (name == "Revoker") or (name == "Shotdasherif")) then
+		if (mesoChars[name] == true) then
 			-- yup
 			return true
 		end
@@ -1211,7 +1221,7 @@ local function CommunityFlare_Battleground_PromoteToLeader(player)
 end
 
 -- count stuff in battlegrounds and promote to assists
-local function CommunityFlare_Battleground_Setup(type)
+local function CommunityFlare_Battleground_Setup(type, isPrint)
 	-- initialize stuff
 	CommFlare.CF.CommCount = 0
 	CommFlare.CF.MercsCount = 0
@@ -1225,7 +1235,11 @@ local function CommunityFlare_Battleground_Setup(type)
 	-- any battlefield scores?
 	CommFlare.CF.NumScores = GetNumBattlefieldScores()
 	if (CommFlare.CF.NumScores == 0) then
-		print("SAS: Not in Battleground yet")
+		-- should print?
+		if (isPrint == true) then
+			-- not in battleground yet
+			print("SAS: Not in Battleground yet")
+		end
 		return
 	end
 
@@ -1253,11 +1267,8 @@ local function CommunityFlare_Battleground_Setup(type)
 			if (CommFlare.CF.ScoreInfo.faction == 0) then
 				-- SAS member?
 				if (CommFlare.db.global.members[player]) then
-					-- processing player list too?
-					if (type == "full") then
-						-- add to names
-						tinsert(CommFlare.CF.CommNamesList, CommFlare.CF.ScoreInfo.name)
-					end
+					-- add to names
+					tinsert(CommFlare.CF.CommNamesList, CommFlare.CF.ScoreInfo.name)
 
 					-- player has raid leader?
 					if (CommFlare.CF.PlayerRank == 2) then
@@ -1285,11 +1296,8 @@ local function CommunityFlare_Battleground_Setup(type)
 			else
 				-- SAS member?
 				if (CommFlare.db.global.members[player]) then
-					-- processing player list too?
-					if (type == "full") then
-						-- add to names
-						tinsert(CommFlare.CF.MercNamesList, CommFlare.CF.ScoreInfo.name)
-					end
+					-- add to names
+					tinsert(CommFlare.CF.MercNamesList, CommFlare.CF.ScoreInfo.name)
 				end
 
 				-- player has raid leader?
@@ -1318,9 +1326,12 @@ local function CommunityFlare_Battleground_Setup(type)
 		end
 	end
 
-	-- display faction results
-	print(strformat("Horde: Healers = %d, Tanks = %d", CommFlare.CF.Horde.Healers, CommFlare.CF.Horde.Tanks))
-	print(strformat("Alliance: Healers = %d, Tanks = %d", CommFlare.CF.Alliance.Healers, CommFlare.CF.Alliance.Tanks))
+	-- should print?
+	if (isPrint == true) then
+		-- display faction results
+		print(strformat("Horde: Healers = %d, Tanks = %d", CommFlare.CF.Horde.Healers, CommFlare.CF.Horde.Tanks))
+		print(strformat("Alliance: Healers = %d, Tanks = %d", CommFlare.CF.Alliance.Healers, CommFlare.CF.Alliance.Tanks))
+	end
 
 	-- has mercenaries?
 	if (#CommFlare.CF.MercNamesList > 0) then
@@ -1341,11 +1352,17 @@ local function CommunityFlare_Battleground_Setup(type)
 			CommFlare.CF.MercsCount = CommFlare.CF.MercsCount + 1
 		end
 
-		-- found merc list?
-		if (CommFlare.CF.MercList ~= nil) then
-			print("SAS MERCS: ", CommFlare.CF.MercList)
+		-- doing full list?
+		if (type == "full") then
+			-- should print?
+			if (isPrint == true) then
+				-- found merc list?
+				if (CommFlare.CF.MercList ~= nil) then
+					print("SAS MERCS: ", CommFlare.CF.MercList)
+				end
+				print(strformat("Found: %d Mercs", CommFlare.CF.MercsCount))
+			end
 		end
-		print(strformat("Found: %d Mercs", CommFlare.CF.MercsCount))
 	end
 
 	-- has community players?
@@ -1367,11 +1384,17 @@ local function CommunityFlare_Battleground_Setup(type)
 			CommFlare.CF.CommCount = CommFlare.CF.CommCount + 1
 		end
 
-		-- found player list?
-		if (CommFlare.CF.PlayerList ~= nil) then
-			print("SAS: ", CommFlare.CF.PlayerList)
+		-- doing full list?
+		if (type == "full") then
+			-- should print?
+			if (isPrint == true) then
+				-- found player list?
+				if (CommFlare.CF.PlayerList ~= nil) then
+					print("SAS: ", CommFlare.CF.PlayerList)
+				end
+				print(strformat("Found: %d", CommFlare.CF.CommCount))
+			end
 		end
-		print(strformat("Found: %d", CommFlare.CF.CommCount))
 	end
 end
 
@@ -1898,47 +1921,19 @@ end
 
 -- get current status
 local function CommunityFlare_Get_Current_Status()
-	-- update battleground status
-	if (CommunityFlare_Update_Battleground_Status() == false) then
-		-- do nothing
-		return
-	end
-
-	-- check for epic battleground
-	if (CommFlare.CF.MapID) then
-		-- get map info
-		print("MapID: ", CommFlare.CF.MapID)
-		CommFlare.CF.MapInfo = MapGetMapInfo(CommFlare.CF.MapID)
-		if (CommFlare.CF.MapInfo and CommFlare.CF.MapInfo.name) then
-			-- alterac valley or korrak's revenge?
-			if ((CommFlare.CF.MapID == 91) or (CommFlare.CF.MapID == 1537)) then
-				-- display alterac valley status
-				print(strformat("%s: Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4", CommFlare.CF.MapInfo.name, CommFlare.CF.AV.Scores.Alliance, CommFlare.CF.AV.Scores.Horde, CommFlare.CF.AV.Counts.Bunkers, CommFlare.CF.AV.Counts.Towers))
-			-- isle of conquest?
-			elseif (CommFlare.CF.MapID == 169) then
-				-- display isle of conquest status
-				print(strformat("%s: Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3", CommFlare.CF.MapInfo.name, CommFlare.CF.IOC.Scores.Alliance, CommFlare.CF.IOC.Counts.Alliance, CommFlare.CF.IOC.Scores.Horde, CommFlare.CF.IOC.Counts.Horde))
-			-- battle for wintergrasp?
-			elseif (CommFlare.CF.MapID == 1334) then
-				-- display wintergrasp status
-				print(strformat("%s: %s; Towers Destroyed: %d/3", CommFlare.CF.MapInfo.name, CommFlare.CF.WG.TimeRemaining, CommFlare.CF.WG.Counts.Towers))
-			-- ashran?
-			elseif (CommFlare.CF.MapID == 1478) then
-				-- display ashran status
-				print(strformat("%s: Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s", CommFlare.CF.MapInfo.name, CommFlare.CF.ASH.Scores.Alliance, CommFlare.CF.ASH.Scores.Horde, CommFlare.CF.ASH.Jeron, CommFlare.CF.ASH.Rylai))
-			end
-		end
-	end
-end
-
--- process status check
-local function CommunityFlare_Process_Status_Check(sender)
 	-- currently in battleground?
+	local text = {}
 	if (PvPIsBattleground() == true) then
 		-- update battleground status
 		if (CommunityFlare_Update_Battleground_Status() == true) then
 			-- has match started yet?
 			if (PvPGetActiveMatchDuration() > 0) then
+				-- sas count not loaded yet?
+				if (CommFlare.CF.CommCount == 0) then
+					-- process battleground stuff / counts
+					CommunityFlare_Battleground_Setup("short", false)
+				end
+
 				-- calculate time elapsed
 				CommFlare.CF.Timer.MilliSeconds = GetBattlefieldInstanceRunTime()
 				CommFlare.CF.Timer.Seconds = math.floor(CommFlare.CF.Timer.MilliSeconds / 1000)
@@ -1947,69 +1942,87 @@ local function CommunityFlare_Process_Status_Check(sender)
 
 				-- alterac valley or korrak's revenge?
 				if ((CommFlare.CF.MapID == 91) or (CommFlare.CF.MapID == 1537)) then
-					-- reply to sender with alterac valley status
-					CommunityFlare_SendMessage(sender, strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.AV.Scores.Alliance, CommFlare.CF.AV.Scores.Horde, CommFlare.CF.AV.Counts.Bunkers, CommFlare.CF.AV.Counts.Towers, CommFlare.CF.CommCount))
+					-- set text to alterac valley status
+					text[1] = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.AV.Scores.Alliance, CommFlare.CF.AV.Scores.Horde, CommFlare.CF.AV.Counts.Bunkers, CommFlare.CF.AV.Counts.Towers, CommFlare.CF.CommCount)
 				-- isle of conquest?
 				elseif (CommFlare.CF.MapID == 169) then
-					-- reply to sender with isle of conquest status
-					CommunityFlare_SendMessage(sender, strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.IOC.Scores.Alliance, CommFlare.CF.IOC.Counts.Alliance, CommFlare.CF.IOC.Scores.Horde, CommFlare.CF.IOC.Counts.Horde, CommFlare.CF.CommCount))
+					-- set text to isle of conquest status
+					text[1] = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.IOC.Scores.Alliance, CommFlare.CF.IOC.Counts.Alliance, CommFlare.CF.IOC.Scores.Horde, CommFlare.CF.IOC.Counts.Horde, CommFlare.CF.CommCount)
 				-- battle for wintergrasp?
 				elseif (CommFlare.CF.MapID == 1334) then
-					-- reply to sender with wintergrasp status
-					CommunityFlare_SendMessage(sender, strformat("%s: %s; Time Elapsed = %d minutes, %d seconds; Towers Destroyed: %d/3; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.WG.TimeRemaining, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.WG.Counts.Towers, CommFlare.CF.CommCount))
+					-- set text to wintergrasp status
+					text[1] = strformat("%s: %s; Time Elapsed = %d minutes, %d seconds; Towers Destroyed: %d/3; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.WG.TimeRemaining, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.WG.Counts.Towers, CommFlare.CF.CommCount)
 				-- ashran?
 				elseif (CommFlare.CF.MapID == 1478) then
-					-- reply to sender with ashran status
-					CommunityFlare_SendMessage(sender, strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.ASH.Scores.Alliance, CommFlare.CF.ASH.Scores.Horde, CommFlare.CF.ASH.Jeron, CommFlare.CF.ASH.Rylai, CommFlare.CF.CommCount))
+					-- set text to ashran status
+					text[1] = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s; %d SAS Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.ASH.Scores.Alliance, CommFlare.CF.ASH.Scores.Horde, CommFlare.CF.ASH.Jeron, CommFlare.CF.ASH.Rylai, CommFlare.CF.CommCount)
 				end
 			else
-				-- reply to sender with map name, gates not opened yet
-				CommunityFlare_SendMessage(sender, strformat("%s: Just entered match. Gates not opened yet! (%d SAS Members.)", CommFlare.CF.MapInfo.name, CommFlare.CF.CommCount))
+				-- set text to gates not opened yet
+				text[1] = strformat("%s: Just entered match. Gates not opened yet! (%d SAS Members.)", CommFlare.CF.MapInfo.name, CommFlare.CF.CommCount)
 			end
 		else
-			-- reply to sender, not epic battleground
-			CommunityFlare_SendMessage(sender, strformat("%s: Not an Epic Battleground to track.", CommFlare.CF.MapInfo.name))
+			-- set text to not an epic battleground
+			text[1] = strformat("%s: Not an Epic Battleground to track.", CommFlare.CF.MapInfo.name)
 		end
-
-		-- add to table for later
-		CommFlare.CF.StatusCheck[sender] = time()
 	else
 		-- check for queued battleground
-		local timer = 0.0
-		local reported = false
 		CommFlare.CF.Leader = CommunityFlare_GetPartyLeader()
 		for i=1, GetMaxBattlefieldID() do
 			-- get battleground types by name
 			local status, mapName = GetBattlefieldStatus(i)
 			local isTracked, isEpicBattleground, isRandomBattleground, isBrawl = CommunityFlare_IsTrackedPVP(mapName)
 
-			-- queued?
-			if (status == "queued") then
-				-- is tracked pvp?
-				if (isTracked == true) then
-					-- reported
-					reported = true
-
-					-- send replies staggered
-					TimerAfter(timer, function()
-						-- report Time been in queue
-						CommFlare.CF.Timer.MilliSeconds = GetBattlefieldTimeWaited(i)
-						CommFlare.CF.Timer.Seconds = math.floor(CommFlare.CF.Timer.MilliSeconds / 1000)
-						CommFlare.CF.Timer.Minutes = math.floor(CommFlare.CF.Timer.Seconds / 60)
-						CommFlare.CF.Timer.Seconds = CommFlare.CF.Timer.Seconds - (CommFlare.CF.Timer.Minutes * 60)
-						CommunityFlare_SendMessage(sender, strformat("%s has been queued for %d minutes and %d seconds for %s.", CommFlare.CF.Leader, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, mapName))
-					end)
-
-					-- next
-					timer = timer + 0.2
-				end
+			-- queued and tracked?
+			if ((status == "queued") and (isTracked == true)) then
+				-- set text to time in queue
+				CommFlare.CF.Timer.MilliSeconds = GetBattlefieldTimeWaited(i)
+				CommFlare.CF.Timer.Seconds = math.floor(CommFlare.CF.Timer.MilliSeconds / 1000)
+				CommFlare.CF.Timer.Minutes = math.floor(CommFlare.CF.Timer.Seconds / 60)
+				CommFlare.CF.Timer.Seconds = CommFlare.CF.Timer.Seconds - (CommFlare.CF.Timer.Minutes * 60)
+				text[i] = strformat("%s has been queued for %d minutes and %d seconds for %s.", CommFlare.CF.Leader, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, mapName)
 			end
 		end
+	end
 
-		-- not reported?
-		if (reported == false) then
-			-- send message
-			CommunityFlare_SendMessage(sender, "Not currently in an Epic Battleground or queue!")
+	-- return text
+	return text
+end
+
+-- process status check
+local function CommunityFlare_Process_Status_Check(sender)
+	-- get status
+	local text = CommunityFlare_Get_Current_Status()
+	if (text and text[1]) then
+		-- has more than one?
+		if (text[2]) then
+			-- process all
+			local timer = 0.0
+			for i=1, #text do
+				-- reported
+				reported = true
+
+				-- send replies staggered
+				TimerAfter(timer, function()
+					-- report queue time
+					CommunityFlare_SendMessage(sender, text[i])
+				end)
+
+				-- next
+				timer = timer + 0.2
+			end
+
+			-- not reported?
+			if (reported == false) then
+				-- send message
+				CommunityFlare_SendMessage(sender, "Not currently in an Epic Battleground or queue!")
+			end
+		else
+			-- send text to sender
+			CommunityFlare_SendMessage(sender, text[1])
+
+			-- add to table for later
+			CommFlare.CF.StatusCheck[sender] = time()
 		end
 	end
 end
@@ -2119,10 +2132,12 @@ function CommFlare:Community_Flare_SlashCommand(input)
 		CommunityFlare_List_POIs()
 	elseif (input == "inactive") then
 		-- check for inactive players
+		print("Checking for inactive players")
 		CommunityFlare_Check_For_Inactive_Players()
 	elseif (input == "refresh") then
 		-- process club members
 		CommunityFlare_Process_Club_Members()
+		print("Refreshed members database!")
 	elseif (input == "reset") then
 		-- reset members database
 		CommFlare.db.global.members = {}
@@ -2135,14 +2150,20 @@ function CommFlare:Community_Flare_SlashCommand(input)
 		print("SAS_ALTS_ID: ", CommFlare.db.profile.SAS_ALTS_ID)
 	elseif (input == "status") then
 		-- get current status
-		CommunityFlare_Get_Current_Status()
+		print("Checking status")
+		local text = CommunityFlare_Get_Current_Status()
+		for i=1, #text do
+			-- display
+			print(text[i])
+		end
+		DevTools_Dump(text)
 	elseif (input == "usage") then
 		-- display usages
 		print("CPU Usage: ", GetAddOnCPUUsage("Community_Flare"))
 		print("Memory Usage: ", GetAddOnMemoryUsage("Community_Flare"))
 	else
 		-- display full battleground setup
-		CommunityFlare_Battleground_Setup("full")
+		CommunityFlare_Battleground_Setup("full", true)
 	end
 end
 
@@ -2260,7 +2281,7 @@ function CommFlare:CHAT_MSG_SYSTEM(msg, ...)
 		-- display battleground setup
 		CommFlare.CF.MatchStatus = 2
 		CommFlare.CF.MatchStartTime = time()
-		CommunityFlare_Battleground_Setup(type)
+		CommunityFlare_Battleground_Setup(type, true)
 	end
 end
 

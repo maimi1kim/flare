@@ -1,3 +1,6 @@
+v0.25 feature:
+-!status changed a little, shows proper SAS count now.
+
 v0.24 features:
 -BUGFIX: If someone tries to get invited via Battle.NET friends list, it no longer converts party to raid!
 
