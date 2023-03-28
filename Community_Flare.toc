@@ -1,7 +1,7 @@
-## Interface: 90200
+## Interface: 90205
 ## Title: Community Flare
 ## Author: Mesostealthy
 ## SavedVariables: CommFlareDB
-## Version: 0.09
+## Version: 0.10
 
 main.lua
