@@ -1,12 +1,83 @@
--- create handles
-CommFlare = LibStub("AceAddon-3.0"):NewAddon(
-	"Community Flare",
-	"AceComm-3.0",
-	"AceConsole-3.0",
-	"AceEvent-3.0"
-)
+-- initialize ACE3
+CommFlare = LibStub("AceAddon-3.0"):NewAddon("Community Flare", "AceComm-3.0", "AceConsole-3.0", "AceEvent-3.0")
 local AC = LibStub("AceConfig-3.0")
 local ACD = LibStub("AceConfigDialog-3.0")
+
+-- localize stuff
+local _G                                        = _G
+local BNGetFriendIndex                          = _G.BNGetFriendIndex
+local BNInviteFriend                            = _G.BNInviteFriend
+local BNSendWhisper                             = _G.BNSendWhisper
+local CreateFrame                               = _G.CreateFrame
+local DevTools_Dump                             = _G.DevTools_Dump
+local GetAddOnCPUUsage                          = _G.GetAddOnCPUUsage
+local GetAddOnMemoryUsage                       = _G.GetAddOnMemoryUsage
+local GetAddOnMetadata                          = _G.GetAddOnMetadata
+local GetBattlefieldEstimatedWaitTime           = _G.GetBattlefieldEstimatedWaitTime
+local GetBattlefieldInstanceRunTime             = _G.GetBattlefieldInstanceRunTime
+local GetBattlefieldPortExpiration              = _G.GetBattlefieldPortExpiration
+local GetBattlefieldStatus                      = _G.GetBattlefieldStatus
+local GetBattlefieldTimeWaited                  = _G.GetBattlefieldTimeWaited
+local GetChannelName                            = _G.GetChannelName
+local GetLFGRoleUpdate                          = _G.GetLFGRoleUpdate
+local GetLFGRoleUpdateBattlegroundInfo          = _G.GetLFGRoleUpdateBattlegroundInfo
+local GetMaxBattlefieldID                       = _G.GetMaxBattlefieldID
+local GetNumBattlefieldScores                   = _G.GetNumBattlefieldScores
+local GetNumGroupMembers                        = _G.GetNumGroupMembers
+local GetNumSubgroupMembers                     = _G.GetNumSubgroupMembers
+local GetPlayerInfoByGUID                       = _G.GetPlayerInfoByGUID
+local GetRaidRosterInfo                         = _G.GetRaidRosterInfo
+local GetRealmName                              = _G.GetRealmName
+local IsInGroup                                 = _G.IsInGroup
+local IsInRaid                                  = _G.IsInRaid
+local PromoteToAssistant                        = _G.PromoteToAssistant
+local PromoteToLeader                           = _G.PromoteToLeader
+local SendChatMessage                           = _G.SendChatMessage
+local StaticPopupDialogs                        = _G.StaticPopupDialogs
+local StaticPopup_Show                          = _G.StaticPopup_Show
+local StaticPopup1                              = _G.StaticPopup1
+local StaticPopup1Text                          = _G.StaticPopup1Text
+local UnitFullName                              = _G.UnitFullName
+local UnitGUID                                  = _G.UnitGUID
+local UnitInRaid                                = _G.UnitInRaid
+local UnitIsGroupLeader                         = _G.UnitIsGroupLeader
+local UnitName                                  = _G.UnitName
+local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
+local AreaPoiInfoGetAreaPOIForMap               = _G.C_AreaPoiInfo.GetAreaPOIForMap
+local AreaPoiInfoGetAreaPOIInfo                 = _G.C_AreaPoiInfo.GetAreaPOIInfo
+local BattleNetGetFriendGameAccountInfo         = _G.C_BattleNet.GetFriendGameAccountInfo
+local BattleNetGetFriendNumGameAccounts         = _G.C_BattleNet.GetFriendNumGameAccounts
+local ChatInfoRegisterAddonMessagePrefix        = _G.C_ChatInfo.RegisterAddonMessagePrefix
+local ChatInfoSendAddonMessage                  = _G.C_ChatInfo.SendAddonMessage
+local ClubGetClubMembers                        = _G.C_Club.GetClubMembers
+local ClubGetMemberInfo                         = _G.C_Club.GetMemberInfo
+local ClubGetSubscribedClubs                    = _G.C_Club.GetSubscribedClubs
+local MapGetBestMapForUnit                      = _G.C_Map.GetBestMapForUnit
+local MapGetMapInfo                             = _G.C_Map.GetMapInfo
+local PartyInfoIsPartyFull                      = _G.C_PartyInfo.IsPartyFull
+local PartyInfoInviteUnit                       = _G.C_PartyInfo.InviteUnit
+local PartyInfoLeaveParty                       = _G.C_PartyInfo.LeaveParty
+local PvPGetActiveMatchState                    = _G.C_PvP.GetActiveMatchState
+local PvPGetActiveMatchDuration                 = _G.C_PvP.GetActiveMatchDuration
+local PvPGetScoreInfo                           = _G.C_PvP.GetScoreInfo
+local PvPIsBattleground                         = _G.C_PvP.IsBattleground
+local TimerAfter                                = _G.C_Timer.After
+local GetDoubleStatusBarWidgetVisualizationInfo = _G.C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo
+local GetIconAndTextWidgetVisualizationInfo     = _G.C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo
+local hooksecurefunc                            = _G.hooksecurefunc
+local ipairs                                    = _G.ipairs
+local pairs                                     = _G.pairs
+local print                                     = _G.print
+local time                                      = _G.time
+local type                                      = _G.type
+local strfind                                   = _G.string.find
+local strformat                                 = _G.string.format
+local strlen                                    = _G.string.len
+local strlower                                  = _G.string.lower
+local strmatch                                  = _G.string.match
+
+-- get current version
+local CommunityFlare_Version = GetAddOnMetadata("Community_Flare", "Version") or "unspecified"
 
 -- defaults
 local defaults = {
@@ -37,7 +108,7 @@ local defaults = {
 
 -- options
 local options = {
-	name = "Community Flare v0.21",
+	name = "Community Flare " .. CommunityFlare_Version,
 	handler = CommFlare,
 	type = "group",
 	args = {
@@ -166,7 +237,6 @@ local CF = {
 	-- strings
 	CommName = "Savage Alliance Slayers",
 	PlayerServerName = "",
-	Version = "v0.21",
 
 	-- booleans
 	AutoPromote = false,
@@ -236,78 +306,6 @@ local sasLeaders = {
 	"Krolak-Proudmoore",
 	"Greenbeans-CenarionCircle"
 }
-
--- localize stuff
-local _G                                        = _G
-local BNGetFriendIndex                          = _G.BNGetFriendIndex
-local BNInviteFriend                            = _G.BNInviteFriend
-local BNSendWhisper                             = _G.BNSendWhisper
-local CreateFrame                               = _G.CreateFrame
-local DevTools_Dump                             = _G.DevTools_Dump
-local GetAddOnCPUUsage                          = _G.GetAddOnCPUUsage
-local GetAddOnMemoryUsage                       = _G.GetAddOnMemoryUsage
-local GetBattlefieldEstimatedWaitTime           = _G.GetBattlefieldEstimatedWaitTime
-local GetBattlefieldInstanceRunTime             = _G.GetBattlefieldInstanceRunTime
-local GetBattlefieldPortExpiration              = _G.GetBattlefieldPortExpiration
-local GetBattlefieldStatus                      = _G.GetBattlefieldStatus
-local GetBattlefieldTimeWaited                  = _G.GetBattlefieldTimeWaited
-local GetChannelName                            = _G.GetChannelName
-local GetLFGRoleUpdate                          = _G.GetLFGRoleUpdate
-local GetLFGRoleUpdateBattlegroundInfo          = _G.GetLFGRoleUpdateBattlegroundInfo
-local GetMaxBattlefieldID                       = _G.GetMaxBattlefieldID
-local GetNumBattlefieldScores                   = _G.GetNumBattlefieldScores
-local GetNumGroupMembers                        = _G.GetNumGroupMembers
-local GetNumSubgroupMembers                     = _G.GetNumSubgroupMembers
-local GetPlayerInfoByGUID                       = _G.GetPlayerInfoByGUID
-local GetRaidRosterInfo                         = _G.GetRaidRosterInfo
-local GetRealmName                              = _G.GetRealmName
-local IsInGroup                                 = _G.IsInGroup
-local IsInRaid                                  = _G.IsInRaid
-local PromoteToAssistant                        = _G.PromoteToAssistant
-local PromoteToLeader                           = _G.PromoteToLeader
-local SendChatMessage                           = _G.SendChatMessage
-local StaticPopupDialogs                        = _G.StaticPopupDialogs
-local StaticPopup_Show                          = _G.StaticPopup_Show
-local StaticPopup1                              = _G.StaticPopup1
-local StaticPopup1Text                          = _G.StaticPopup1Text
-local UnitFullName                              = _G.UnitFullName
-local UnitGUID                                  = _G.UnitGUID
-local UnitInRaid                                = _G.UnitInRaid
-local UnitIsGroupLeader                         = _G.UnitIsGroupLeader
-local UnitName                                  = _G.UnitName
-local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
-local AreaPoiInfoGetAreaPOIForMap               = _G.C_AreaPoiInfo.GetAreaPOIForMap
-local AreaPoiInfoGetAreaPOIInfo                 = _G.C_AreaPoiInfo.GetAreaPOIInfo
-local BattleNetGetFriendGameAccountInfo         = _G.C_BattleNet.GetFriendGameAccountInfo
-local BattleNetGetFriendNumGameAccounts         = _G.C_BattleNet.GetFriendNumGameAccounts
-local ChatInfoRegisterAddonMessagePrefix        = _G.C_ChatInfo.RegisterAddonMessagePrefix
-local ChatInfoSendAddonMessage                  = _G.C_ChatInfo.SendAddonMessage
-local ClubGetClubMembers                        = _G.C_Club.GetClubMembers
-local ClubGetMemberInfo                         = _G.C_Club.GetMemberInfo
-local ClubGetSubscribedClubs                    = _G.C_Club.GetSubscribedClubs
-local MapGetBestMapForUnit                      = _G.C_Map.GetBestMapForUnit
-local MapGetMapInfo                             = _G.C_Map.GetMapInfo
-local PartyInfoIsPartyFull                      = _G.C_PartyInfo.IsPartyFull
-local PartyInfoInviteUnit                       = _G.C_PartyInfo.InviteUnit
-local PartyInfoLeaveParty                       = _G.C_PartyInfo.LeaveParty
-local PvPGetActiveMatchState                    = _G.C_PvP.GetActiveMatchState
-local PvPGetActiveMatchDuration                 = _G.C_PvP.GetActiveMatchDuration
-local PvPGetScoreInfo                           = _G.C_PvP.GetScoreInfo
-local PvPIsBattleground                         = _G.C_PvP.IsBattleground
-local TimerAfter                                = _G.C_Timer.After
-local GetDoubleStatusBarWidgetVisualizationInfo = _G.C_UIWidgetManager.GetDoubleStatusBarWidgetVisualizationInfo
-local GetIconAndTextWidgetVisualizationInfo     = _G.C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo
-local hooksecurefunc                            = _G.hooksecurefunc
-local ipairs                                    = _G.ipairs
-local pairs                                     = _G.pairs
-local print                                     = _G.print
-local time                                      = _G.time
-local type                                      = _G.type
-local strfind                                   = _G.string.find
-local strformat                                 = _G.string.format
-local strlen                                    = _G.string.len
-local strlower                                  = _G.string.lower
-local strmatch                                  = _G.string.match
 
 -- global function (check if dragon riding available)
 function IsDragonFlyable()
@@ -796,29 +794,6 @@ local function CommunityFlare_Battleground_Setup(type)
 	print("Found: ", CF.Count)
 end
 
--- securely hook pvp ready dialog display
-local function CommunityFlare_PVPReadyDialog_Display(self, index, displayName, isRated, queueType, gameType, role)
-	-- process random epic battlegrounds only
-	if (displayName == "Random Epic Battleground") then
-		if (GetBattlefieldPortExpiration(index) > 0) then
-			-- community reporter enabled?
-			if (CommFlare.db.profile.communityReporter == true) then
-				if (CommunityFlare_IsGroupLeader() == true) then
-					CommunityFlare_PopupBox(strformat("%s Queue Popped!", CommunityFlare_GetGroupCount()))
-				end
-			end
-
-			-- queue popped / not joined
-			CF.QueueJoined = false
-			CF.QueuePopped = true
-		end
-	else
-		-- reset settings
-		CF.QueueJoined = false
-		CF.QueuePopped = false
-	end
-end
-
 -- hook pvp ready dialog enter clicked
 local function CommunityFlare_PVPReadyDialogEnterBattleButton_OnClick()
 	-- reset settings
@@ -853,7 +828,6 @@ end
 -- process queue stuff
 local function CommunityFlare_ProcessQueues()
 	-- hook stuff
-	hooksecurefunc("PVPReadyDialog_Display", CommunityFlare_PVPReadyDialog_Display)
 	hooksecurefunc("PVPReadyDialog_OnHide", CommunityFlare_PVPReadyDialog_OnHide)
 	PVPReadyDialogEnterBattleButton:HookScript("OnClick", CommunityFlare_PVPReadyDialogEnterBattleButton_OnClick)
 
@@ -1249,7 +1223,7 @@ local function CommunityFlare_Event_Chat_Message_Party(...)
 	if (CommunityFlare_GetPlayerName("full") ~= sender) then
 		if (text == "!cf") then
 			-- send community flare version number
-			CommunityFlare_SendMessage(nil, strformat("Community Flare: %s", CF.Version))
+			CommunityFlare_SendMessage(nil, strformat("Community Flare: %s", CommunityFlare_Version))
 		end
 	end
 end
@@ -1290,7 +1264,7 @@ function CommFlare:CHAT_MSG_BN_WHISPER(msg, ...)
 	text = strlower(text)
 	if (text == "!cf") then
 		-- send community flare version number
-		CommunityFlare_SendMessage(bnSenderID, strformat("Community Flare: %s", CF.Version))
+		CommunityFlare_SendMessage(bnSenderID, strformat("Community Flare: %s", CommunityFlare_Version))
 	-- status check?
 	elseif (text == "!status") then
 		-- process status check
@@ -1467,7 +1441,7 @@ function CommFlare:CHAT_MSG_WHISPER(msg, ...)
 	text = strlower(text)
 	if (text == "!cf") then
 		-- send community flare version number
-		CommunityFlare_SendMessage(sender, strformat("Community Flare: %s", CF.Version))
+		CommunityFlare_SendMessage(sender, strformat("Community Flare: %s", CommunityFlare_Version))
 	-- pass leadership?
 	elseif (text == "!pl") then
 		-- not sas leader?
@@ -1710,7 +1684,7 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 	local isInitialLogin, isReloadingUi = ...
 	if ((isInitialLogin) or (isReloadingUi)) then
 		-- display version
-		print("Community Flare: ", CF.Version)
+		print("Community Flare: ", CommunityFlare_Version)
 		TimerAfter(2, function()
 			-- get proper sas community id
 			CommFlare.db.profile.SASID = CommunityFlare_FindClubIDByName(CF.CommName)
@@ -1876,6 +1850,36 @@ function CommFlare:UI_INFO_MESSAGE(msg, ...)
 	end
 end
 
+-- process update battlefield status
+function CommFlare:UPDATE_BATTLEFIELD_STATUS(msg, ...)
+	local index = ...
+
+	-- confirm?
+	local status, mapName = GetBattlefieldStatus(index)
+	if (status == "confirm") then
+		-- process random epic battlegrounds only
+		if (mapName == "Random Epic Battleground") then
+			local expiration = GetBattlefieldPortExpiration(index)
+			if (expiration > 0) then
+				-- community reporter enabled?
+				if (CommFlare.db.profile.communityReporter == true) then
+					if (CommunityFlare_IsGroupLeader() == true) then
+						CommunityFlare_PopupBox(strformat("%s Queue Popped!", CommunityFlare_GetGroupCount()))
+					end
+				end
+
+				-- queue popped / not joined
+				CF.QueueJoined = false
+				CF.QueuePopped = true
+			end
+		else
+			-- reset settings
+			CF.QueueJoined = false
+			CF.QueuePopped = false
+		end
+	end
+end
+
 -- enabled
 function CommFlare:OnEnable()
 	-- register events
@@ -1899,6 +1903,7 @@ function CommFlare:OnEnable()
 	self:RegisterEvent("PVP_MATCH_INACTIVE")
 	self:RegisterEvent("READY_CHECK")
 	self:RegisterEvent("UI_INFO_MESSAGE")
+	self:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
 end
 
 -- disabled
@@ -1924,6 +1929,7 @@ function CommFlare:OnDisable()
 	self:UnregisterEvent("PVP_MATCH_INACTIVE")
 	self:UnregisterEvent("READY_CHECK")
 	self:UnregisterEvent("UI_INFO_MESSAGE")
+	self:UnregisterEvent("UPDATE_BATTLEFIELD_STATUS")
 end
 
 -- refresh config
@@ -1953,7 +1959,7 @@ function CommFlare:OnInitialize()
 	local profiles = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
 	AC:RegisterOptionsTable("CommFlare_Profiles", profiles)
 	ACD:AddToBlizOptions("CommFlare_Profiles", "Profiles", "Community Flare")
-
-	-- register slash command
-	CommFlare:RegisterChatCommand("comf", "Community_Flare_SlashCommand")
 end
+
+-- register slash command
+CommFlare:RegisterChatCommand("comf", "Community_Flare_SlashCommand")

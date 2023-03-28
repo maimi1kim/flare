@@ -1,3 +1,8 @@
+v0.22 features:
+-Fixed /comf command that was broken in previous v0.21 version!
+-Fixed !cf replies to send back version instead of unspecified.
+-Fixed ACE3 libraries load order and loading process.
+
 v0.21 features:
 -Changed Options -> Addons -> Community Flare to use Ace3 library with profiles.
 -Added Auto Queue Options to allow automatically queing for Epic Battlegrounds and normal Battlegrounds.
