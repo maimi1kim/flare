@@ -8,10 +8,10 @@ function comf_get_rank(playerName)
   return nil
 end
 
-function comf_find_clubid(name)
+function comf_find_clubid(communityName)
   local clubs = C_Club.GetSubscribedClubs()
   for i,v in ipairs(clubs) do
-    if (v.name == "Savage Alliance Slayers") then
+    if (v.name == communityName) then
       return v
     end
   end
@@ -20,10 +20,9 @@ end
 
 SLASH_COMF1 = "/comf"
 SlashCmdList["COMF"] = function(msg, editBox)
+  local count = 0
   local playerName = UnitName("player")
-  --[[ print("player: ", playerName) --]]
   local rank = comf_get_rank(playerName)
-  --[[ print("rank: ", rank) --]]
   local club = comf_find_clubid("Savage Alliance Slayers")
   if not club then
     print("SAS: Community not found!")
@@ -32,11 +31,10 @@ SlashCmdList["COMF"] = function(msg, editBox)
     local c = C_Club.GetClubMembers(club.clubId)
     for i,v in ipairs(c) do
       local memberInfo = C_Club.GetMemberInfo(club.clubId, v);
-      if memberInfo.presence == 1 then
+      if memberInfo ~= nil then
         local n = UnitInRaid(memberInfo.name)
-        if not n then
-          --[[ print("Not in Raid: ", memberInfo.name) --]]
-        else
+        if n ~= nil then
+          count = count + 1
           print("SAS: ", memberInfo.name)
           if rank == 2 then
             PromoteToAssistant(memberInfo.name)
@@ -44,6 +42,6 @@ SlashCmdList["COMF"] = function(msg, editBox)
         end
       end
     end
+    print("Found: ", count)
   end
-  print("Finished!")
 end
