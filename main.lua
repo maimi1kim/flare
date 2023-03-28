@@ -599,7 +599,6 @@ end
 -- load session variables
 local function CommunityFlare_LoadSession()
 	-- misc stuff
-	CommFlare.db.global.members = CommFlare.db.global.members or {}
 	CommFlare.CF.MatchStatus = CommFlare.db.profile.MatchStatus
 	CommFlare.CF.Queues = CommFlare.db.profile.Queues or {}
 
@@ -646,6 +645,16 @@ local function CommunityFlare_AddMember(id, info)
 	if (not strmatch(player, "-")) then
 		-- add realm name
 		player = player .. "-" .. GetRealmName()
+	end
+
+	-- sanity checks?
+	if (not CommFlare.db.global) then
+		-- initialize
+		CommFlare.db.global = {}
+	end
+	if (not CommFlare.db.global.members) then
+		-- initialize
+		CommFlare.db.global.members = {}
 	end
 
 	-- add to members
@@ -1030,7 +1039,7 @@ function CommunityFlare_IsSASMember(name)
 	end
 
 	-- SAS/SAS ALT found?
-	if (player and (player ~= "") and CommFlare.db.global.members[player]) then
+	if (player and (player ~= "") and CommFlare.db.global and CommFlare.db.global.members and CommFlare.db.global.members[player]) then
 		-- member found in database
 		isMember = true
 	else
@@ -1054,6 +1063,16 @@ function CommunityFlare_FindSASMemberByGUID(guid)
 		return nil
 	end
 
+	-- sanity check?
+	if (not CommFlare.db.global) then
+		-- initialize
+		CommFlare.db.global = {}
+	end
+	if (not CommFlare.db.global.members) then
+		-- initialize
+		CommFlare.db.global.members = {}
+	end
+
 	-- process all
 	for k,v in pairs(CommFlare.db.global.members) do
 		-- matches?
@@ -1065,6 +1084,29 @@ function CommunityFlare_FindSASMemberByGUID(guid)
 
 	-- failed
 	return nil
+end
+
+-- get member count
+local function CommunityFlare_GetMemberCount()
+	-- sanity check?
+	if (not CommFlare.db.global) then
+		-- initialize
+		CommFlare.db.global = {}
+	end
+	if (not CommFlare.db.global.members) then
+		-- initialize
+		CommFlare.db.global.members = {}
+	end
+
+	-- process all
+	local count = 0
+	for k,v in pairs(CommFlare.db.global.members) do
+		-- increase
+		count = count + 1
+	end
+
+	-- success
+	return count
 end
 
 -- check if a unit has type aura active
@@ -1266,7 +1308,7 @@ local function CommunityFlare_Battleground_Setup(type, isPrint)
 			-- horde faction?
 			if (CommFlare.CF.ScoreInfo.faction == 0) then
 				-- SAS member?
-				if (CommFlare.db.global.members[player]) then
+				if (CommFlare.db.global and CommFlare.db.global.members and CommFlare.db.global.members[player]) then
 					-- add to names
 					tinsert(CommFlare.CF.CommNamesList, CommFlare.CF.ScoreInfo.name)
 
@@ -1295,7 +1337,7 @@ local function CommunityFlare_Battleground_Setup(type, isPrint)
 				end
 			else
 				-- SAS member?
-				if (CommFlare.db.global.members[player]) then
+				if (CommFlare.db.global and CommFlare.db.global.members and CommFlare.db.global.members[player]) then
 					-- add to names
 					tinsert(CommFlare.CF.MercNamesList, CommFlare.CF.ScoreInfo.name)
 				end
@@ -1516,24 +1558,21 @@ local function CommunityFlare_HonorFrameQueueButton_OnEnter(self)
 			if (UnitIsDeadOrGhost(unit) == true) then
 				-- kick them
 				kickPlayer = true
-				print("Unit is dead: ", unit)
-				print("Player: ", player)
-				print("Realm: ", realm)
 			end
 
 			-- are they offline?
 			if (UnitIsConnected(unit) ~= true) then
 				-- kick them
 				kickPlayer = true
-				print("Unit is offline: ", unit)
-				print("Player: ", player)
-				print("Realm: ", realm)
 			end
 
 			-- should kick?
 			if (kickPlayer == true) then
-				-- ask to kick?
-				CommunityFlare_PopupBox("CommunityFlare_Kick_Dialog", player)
+				-- are you leader?
+				if (CommunityFlare_IsGroupLeader() == true) then
+					-- ask to kick?
+					CommunityFlare_PopupBox("CommunityFlare_Kick_Dialog", player)
+				end
 			end
 		end
 	end
@@ -1671,8 +1710,11 @@ local function CommunityFlare_Initialize_Queue_Session()
 
 							-- role not chosen?
 							if (not CommFlare.CF.RoleChosen[player] or (CommFlare.CF.RoleChosen[player] ~= true)) then
-								-- ask to kick?
-								CommunityFlare_PopupBox("CommunityFlare_Kick_Dialog", player)
+								-- are you leader?
+								if (CommunityFlare_IsGroupLeader() == true) then
+									-- ask to kick?
+									CommunityFlare_PopupBox("CommunityFlare_Kick_Dialog", player)
+								end
 							end
 						end
 					end
@@ -2137,7 +2179,7 @@ function CommFlare:Community_Flare_SlashCommand(input)
 	elseif (input == "refresh") then
 		-- process club members
 		CommunityFlare_Process_Club_Members()
-		print("Refreshed members database!")
+		print(strformat("Refreshed members databased! %d members found.", CommunityFlare_GetMemberCount()))
 	elseif (input == "reset") then
 		-- reset members database
 		CommFlare.db.global.members = {}
@@ -2148,15 +2190,6 @@ function CommFlare:Community_Flare_SlashCommand(input)
 		CommFlare.db.profile.SAS_ALTS_ID = CommunityFlare_FindClubID(CommFlare.CF.AltsCommName)
 		print("SASID: ", CommFlare.db.profile.SASID)
 		print("SAS_ALTS_ID: ", CommFlare.db.profile.SAS_ALTS_ID)
-	elseif (input == "status") then
-		-- get current status
-		print("Checking status")
-		local text = CommunityFlare_Get_Current_Status()
-		for i=1, #text do
-			-- display
-			print(text[i])
-		end
-		DevTools_Dump(text)
 	elseif (input == "usage") then
 		-- display usages
 		print("CPU Usage: ", GetAddOnCPUUsage("Community_Flare"))
@@ -2737,6 +2770,9 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 			CommFlare.db.global = {}
 		end
 
+		-- load / initialize members
+		CommFlare.db.global.members = CommFlare.db.global.members or {}
+
 		-- reloading?
 		if (isReloadingUi) then
 			-- reloaded
@@ -2897,10 +2933,10 @@ function CommFlare:QUEST_DETAIL(msg, ...)
 
 						-- alterac valley or korrak's revenge?
 						if ((CommFlare.CF.MapID == 91) or (CommFlare.CF.MapID == 1537)) then
-							-- list of allowed Alterac Valley quests
+							-- list of allowed quests
 							local allowedQuests = {
-								[56257] = true,
-								[56259] = true,
+								[56257] = true, -- The Battle for Alterac (Seasonal)
+								[56259] = true, -- Lokholar the Ice Lord (Seasonal)
 							}
 
 							-- allowed quest?
@@ -2915,15 +2951,15 @@ function CommFlare:QUEST_DETAIL(msg, ...)
 							epicBG = true
 						-- battle for wintergrasp?
 						elseif (CommFlare.CF.MapID == 1334) then
-							-- list of allowed Wintergrasp quests
+							-- list of allowed quests
 							local allowedQuests = {
-								[13178] = true,
-								[13183] = true,
-								[13185] = true,
-								[13223] = true,
-								[13539] = true,
-								[55509] = true,
-								[55511] = true,
+								[13178] = true, -- Slay them all
+								[13183] = true, -- Victory in Wintergrasp
+								[13185] = true, -- Stop the Siege
+								[13223] = true, -- Defend the Siege
+								[13539] = true, -- Toppling the Towers
+								[55509] = true, -- Victory in Wintergrasp (Seasonal)
+								[55511] = true, -- Slay them all! (Seasonal)
 							}
 
 							-- allowed quest?
@@ -2934,10 +2970,10 @@ function CommFlare:QUEST_DETAIL(msg, ...)
 							end
 						-- ashran?
 						elseif (CommFlare.CF.MapID == 1478) then
-							-- list of allowed Wintergrasp quests
+							-- list of allowed quests
 							local allowedQuests = {
-								[56337] = true,
-								[56339] = true,
+								[56337] = true, -- Uncovering the Artifact Fragments (Seasonal)
+								[56339] = true, -- Tremblade Must Die (Seasonal)
 							}
 
 							-- allowed quest?
@@ -2950,7 +2986,7 @@ function CommFlare:QUEST_DETAIL(msg, ...)
 
 						-- epic battleground?
 						if (epicBG == true) then
-							-- list of allowed weekly quests
+							-- list of allowed quests
 							local allowedQuests = {
 								[72167] = true,
 								[72723] = true,

@@ -1,4 +1,8 @@
-v0.25 feature:
+v0.26 features:
+-If someone is offline or dead, it now will only ask you to Kick them if you are party leader.
+-BUGFIX: Sometimes failed to create initial member database.
+
+v0.25 features:
 -!status changed a little, shows proper SAS count now.
 
 v0.24 features:
