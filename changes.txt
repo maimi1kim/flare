@@ -1,3 +1,6 @@
+v0.24 features:
+-BUGFIX: If someone tries to get invited via Battle.NET friends list, it no longer converts party to raid!
+
 v0.23 features:
 -New setting to ask to kick users who are AFK when queuing up. (Disabled by default, has 3, 4, 5, 6 seconds delay settings.)
 -New setting to enable Auto Queing + Reporting Queue stuff for Random Battlegrounds.

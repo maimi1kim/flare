@@ -63,6 +63,7 @@ local UnitRealmRelationship                     = _G.UnitRealmRelationship
 local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
 local AreaPoiInfoGetAreaPOIForMap               = _G.C_AreaPoiInfo.GetAreaPOIForMap
 local AreaPoiInfoGetAreaPOIInfo                 = _G.C_AreaPoiInfo.GetAreaPOIInfo
+local BattleNetGetAccountInfoByGUID             = _G.C_BattleNet.GetAccountInfoByGUID
 local BattleNetGetFriendGameAccountInfo         = _G.C_BattleNet.GetFriendGameAccountInfo
 local BattleNetGetFriendNumGameAccounts         = _G.C_BattleNet.GetFriendNumGameAccounts
 local ChatInfoRegisterAddonMessagePrefix        = _G.C_ChatInfo.RegisterAddonMessagePrefix
@@ -2119,6 +2120,9 @@ function CommFlare:Community_Flare_SlashCommand(input)
 	elseif (input == "inactive") then
 		-- check for inactive players
 		CommunityFlare_Check_For_Inactive_Players()
+	elseif (input == "refresh") then
+		-- process club members
+		CommunityFlare_Process_Club_Members()
 	elseif (input == "reset") then
 		-- reset members database
 		CommFlare.db.global.members = {}
@@ -2180,18 +2184,19 @@ function CommFlare:CHAT_MSG_BN_WHISPER(msg, ...)
 					local numGameAccounts = BattleNetGetFriendNumGameAccounts(index)
 					for i=1, numGameAccounts do
 						-- check if account has player guid online
-						local gameAccountInfo = BattleNetGetFriendGameAccountInfo(index, i)
-						if (gameAccountInfo.playerGuid) then
+						local accountInfo = BattleNetGetFriendGameAccountInfo(index, i)
+						if (accountInfo.playerGuid) then
 							-- party is full?
 							if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
+								-- send Battle.Net message
 								CommunityFlare_SendMessage(bnSenderID, "Sorry, group is currently full.")
 							else
 								-- get invite type
-								local inviteType = GetDisplayedInviteType(gameAccountInfo.playerGuid);
+								local inviteType = GetDisplayedInviteType(accountInfo.playerGuid)
 								if ((inviteType == "INVITE") or (inviteType == "SUGGEST_INVITE")) then
-									BNInviteFriend(gameAccountInfo.gameAccountID)
+									BNInviteFriend(accountInfo.gameAccountID)
 								elseif (inviteType == "REQUEST_INVITE") then
-									BNRequestInviteFriend(gameAccountInfo.gameAccountID)
+									BNRequestInviteFriend(accountInfo.gameAccountID)
 								end
 							end
 							break
@@ -2384,83 +2389,106 @@ end
 
 -- process group invite confirmation
 function CommFlare:GROUP_INVITE_CONFIRMATION(msg)
-	-- has text?
-	local text = StaticPopup1Text["text_arg1"]
-	if (text and (text ~= "")) then
-		-- has requested to join your group?
-		text = strlower(text)
-		if (strfind(text, "has requested to join your group")) then
-			-- get next pending invite
-			local invite = GetNextPendingInviteConfirmation()
-			if (invite) then
-				-- get invite confirmation info
-				local confirmationType, name, guid, rolesInvalid, willConvertToRaid, level, spec, itemLevel = GetInviteConfirmationInfo(invite)
-				local referredByGuid, referredByName, relationType, isQuickJoin, clubId = PartyInfoGetInviteReferralInfo(invite)
-				local _, _, selfRelationship = SocialQueueUtil_GetRelationshipInfo(guid, name, outClubId)
+	-- check for auto invites?
+	local autoInvite = false
+	if (not IsInGroup()) then
+		-- yes
+		autoInvite = true
+	elseif (not IsInRaid() and IsInGroup()) then
+		-- yes
+		autoInvite = true
+	end
 
-				-- has proper name?
-				local player = ""
-				if (name and (name ~= "")) then
-					-- force name-realm format
-					player = name
-					if (not strmatch(player, "-")) then
-						-- add realm name
-						player = player .. "-" .. GetRealmName()
-					end
-				end
+	-- check for auto invites?
+	if (autoInvite == true) then
+		-- read the text
+		local text = StaticPopup1Text["text_arg1"]
+		if (text and (text ~= "")) then
+			-- has requested to join your group?
+			text = strlower(text)
+			if (strfind(text, "has requested to join your group")) then
+				-- get next pending invite
+				local invite = GetNextPendingInviteConfirmation()
+				if (invite) then
+					-- get invite confirmation info
+					local confirmationType, name, guid, rolesInvalid, willConvertToRaid, level, spec, itemLevel = GetInviteConfirmationInfo(invite)
+					local referredByGuid, referredByName, relationType, isQuickJoin, clubId = PartyInfoGetInviteReferralInfo(invite)
+					local _, _, selfRelationship = SocialQueueUtil_GetRelationshipInfo(guid, name, clubId)
 
-				-- battle net friend?
-				if (selfRelationship == "bnfriend") then
-					-- battle net auto invite enabled?
-					if (CommFlare.db.profile.bnetAutoInvite == true) then
-						-- accept invite
-						RespondToInviteConfirmation(invite, true)
+					-- will invite cause conversion to raid?
+					if (willConvertToRaid or (GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
+						-- cancel invite
+						RespondToInviteConfirmation(invite, false)
 
 						-- hide popup
 						if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
 							-- hide
 							StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
 						end
-					end
-				-- community auto invite enabled?
-				elseif (CommFlare.db.profile.communityAutoInvite == true) then
-					-- is sender an SAS member?
-					CommFlare.CF.AutoInvite = CommunityFlare_IsSASMember(player)
-					if (CommFlare.CF.AutoInvite == true) then
 
-						-- will invite cause conversion to raid?
-						if (willConvertToRaid) then
-							-- cancel invite
-							RespondToInviteConfirmation(invite, false)
-
-							-- hide popup
-							if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
-								-- hide
-								StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
+						-- battle net friend?
+						if (selfRelationship == "bnfriend") then
+							local accountInfo = BattleNetGetAccountInfoByGUID(guid)
+							if (accountInfo and accountInfo.gameAccountInfo and accountInfo.gameAccountInfo.playerGuid) then
+								-- send battle net message
+								CommunityFlare_SendMessage(accountInfo.bnetAccountID, "Sorry, group is currently full.")
 							end
-						-- should always have room?
 						else
-							-- accept invite
-							RespondToInviteConfirmation(invite, true)
+							-- send message
+							CommunityFlare_SendMessage(name, "Sorry, group is currently full.")
+						end
+					else
+						-- has proper name?
+						local player = ""
+						if (name and (name ~= "")) then
+							-- force name-realm format
+							player = name
+							if (not strmatch(player, "-")) then
+								-- add realm name
+								player = player .. "-" .. GetRealmName()
+							end
+						end
 
-							-- hide popup
-							if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
-								-- hide
-								StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
+						-- battle net friend?
+						if (selfRelationship == "bnfriend") then
+							-- battle net auto invite enabled?
+							if (CommFlare.db.profile.bnetAutoInvite == true) then
+								-- accept invite
+								RespondToInviteConfirmation(invite, true)
+
+								-- hide popup
+								if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
+									-- hide
+									StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
+								end
+							end
+						-- community auto invite enabled?
+						elseif (CommFlare.db.profile.communityAutoInvite == true) then
+							-- is sender an SAS member?
+							CommFlare.CF.AutoInvite = CommunityFlare_IsSASMember(player)
+							if (CommFlare.CF.AutoInvite == true) then
+								-- accept invite
+								RespondToInviteConfirmation(invite, true)
+
+								-- hide popup
+								if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
+									-- hide
+									StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
+								end
 							end
 						end
 					end
 				end
-			end
-		-- you will be removed from?
-		elseif (strfind(text, "you will be removed from")) then
-			-- cancel invite
-			RespondToInviteConfirmation(invite, false)
+			-- you will be removed from?
+			elseif (strfind(text, "you will be removed from")) then
+				-- cancel invite
+				RespondToInviteConfirmation(invite, false)
 
-			-- hide popup
-			if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
-				-- hide
-				StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
+				-- hide popup
+				if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
+					-- hide
+					StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
+				end
 			end
 		end
 	end
@@ -2746,6 +2774,9 @@ function CommFlare:PVP_MATCH_ACTIVE(msg)
 
 	-- active status
 	CommFlare.CF.MatchStatus = 1
+
+	-- process club members
+	CommunityFlare_Process_Club_Members()
 end
 
 -- process pvp match complete
