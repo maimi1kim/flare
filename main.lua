@@ -39,10 +39,8 @@ end
 function comf_find_clubid(communityName)
   local clubs = C_Club.GetSubscribedClubs()
   for i,v in ipairs(clubs) do
-    if (v.clubType == 1) then
-      if (v.name == communityName) then
-        return v
-      end
+    if (v.name == communityName) then
+      return v
     end
   end
   return nil
@@ -90,28 +88,35 @@ SlashCmdList["COMF"] = function(msg, editBox)
 
   -- find SAS members
   local count = 0
+  local clubId = 0
   local playerName = UnitName("player")
   local rank = comf_get_rank(playerName)
   local club = comf_find_clubid("Savage Alliance Slayers")
   if not club then
-    print("SAS: Community not found!")
+    clubId = 372791201
   else
-    print("SAS: ", club.clubId)
-    local c = C_Club.GetClubMembers(club.clubId)
-    for i,v in ipairs(c) do
-      local memberInfo = C_Club.GetMemberInfo(club.clubId, v);
-      if memberInfo ~= nil then
-        local n = UnitInRaid(memberInfo.name)
-        if n ~= nil then
-          count = count + 1
-          print("SAS: ", memberInfo.name)
-          if rank == 2 then
-            PromoteToAssistant(memberInfo.name)
-          end
+    clubId = club.clubId
+  end
+  local playerList
+  playerList = nil
+  local c = C_Club.GetClubMembers(clubId)
+  for i,v in ipairs(c) do
+    local memberInfo = C_Club.GetMemberInfo(clubId, v);
+    if memberInfo ~= nil then
+      local n = UnitInRaid(memberInfo.name)
+      if n ~= nil then
+        count = count + 1
+        if playerList == nil then
+          playerList = memberInfo.name
+        else
+          playerList = playerList .. ", " .. memberInfo.name
+        end
+        if rank == 2 then
+          PromoteToAssistant(memberInfo.name)
         end
       end
     end
-    print("Found: ", count)
   end
-
+  print("SAS: ", playerList)
+  print("Found: ", count)
 end
