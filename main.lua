@@ -84,8 +84,8 @@ SLASH_COMF1 = "/comf"
 SlashCmdList["COMF"] = function(msg, editBox)
 	-- count some stuff
 	local numScores = GetNumBattlefieldScores()
-	local numHorde, numHordeHealers, numHordeTanks = 0
-	local numAlliance, numAllianceHealers, numAllianceTanks = 0
+	local numHorde, numHordeHealers, numHordeTanks = 0, 0, 0
+	local numAlliance, numAllianceHealers, numAllianceTanks = 0, 0, 0
 	if numScores ~= 0 then
 		for i = 1, numScores do
 			local name,_,_,_,_,faction,race,_,class,_,_,_,_,_,_,spec = GetBattlefieldScore(i)
@@ -119,7 +119,7 @@ SlashCmdList["COMF"] = function(msg, editBox)
 
 		-- find SAS members
 		local playerList = nil
-		local count, clubId = 0
+		local count, clubId = 0, 0
 		local playerName = UnitName("player")
 		local rank = comf_get_rank(playerName)
 		local clubId = comf_find_clubid("Savage Alliance Slayers")
