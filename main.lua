@@ -20,7 +20,9 @@ end
 
 SLASH_COMF1 = "/comf"
 SlashCmdList["COMF"] = function(msg, editBox)
-  local rank = comf_get_rank("player")
+  local playerName = UnitName("player")
+  --[[ print("player: ", playerName) --]]
+  local rank = comf_get_rank(playerName)
   --[[ print("rank: ", rank) --]]
   local club = comf_find_clubid("Savage Alliance Slayers")
   if not club then
