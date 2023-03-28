@@ -1,7 +1,7 @@
 ## Title: Community Flare
 ## Author: Mesostealthy
-## Version: v0.11
+## Version: v0.12
 ## SavedVariablesPerCharacter: CommFlareDB
-## Interface: 90205
+## Interface: 100000
 
 main.lua

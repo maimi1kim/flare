@@ -2,7 +2,7 @@ SLASH_COMF1 = "/comf"
 
 -- current stuff
 local CommFlareDB = {}
-local cfVersion = "v0.11"
+local cfVersion = "v0.12"
 
 -- localize stuff
 local _G = _G;
@@ -62,8 +62,8 @@ local strfind, strformat, strlower = string.find, string.format, string.lower
 -- default options
 local CommFlare_DefaultOptions = {
 	["SASID"] = 0,
-	["bnetAutoInvite"] = false,
 	["alwaysAutoQueue"] = false,
+	["bnetAutoInvite"] = false,
 	["communityAutoInvite"] = true,
 	["communityAutoPromoteLeader"] = true,
 	["communityAutoQueue"] = true,
@@ -99,11 +99,11 @@ local f = CreateFrame("FRAME")
 f.sasLeaders = {
 	"Cinco-CenarionCircle",
 	"Mesostealthy-Dentarg",
-	"Angelsong-BlackwaterRaiders",
-	"Conno-Thunderlord",
-	"Krolak-Proudmoore",
-	"Shadowness-Dentarg",
+	"Lifestooport-Dentarg",
 	"Shotdasherif-Dentarg",
+	"Angelsong-BlackwaterRaiders",
+	"Shanlie-CenarionCircle",
+	"Krolak-Proudmoore",
 }
 
 -- setup addon options
@@ -237,6 +237,16 @@ local function CommunityFlare_PopupBox(message)
 		-- restore popup
 		StaticPopupDialogs["CommunityFlare_Popup_Dialog"] = popup
 	end
+end
+
+-- is sas leader?
+local function CommunityFlare_IsSASLeader(name)
+	for _,v in ipairs(f.sasLeaders) do
+		if (name == v) then
+			return true
+		end
+	end
+	return false
 end
 
 -- get proper player name by type
@@ -738,15 +748,20 @@ end
 -- setup stuff to automatically accept queues
 local function CommunityFlare_AutoAcceptQueues()
 	LFDRoleCheckPopupAcceptButton:SetScript("OnShow", function()
+		-- check if should auto queue
 		local autoQueue = false
-		if (CommFlareDB["alwaysAutoQueue"] == true) then
-			autoQueue = true
-		elseif (CommFlareDB["communityAutoQueue"] == true) then
-			local player = CommunityFlare_FindClubMemberByName(CommunityFlare_GetPartyLeader())
-			if (player ~= nil) then
+		if (not IsInRaid()) then
+			if (CommFlareDB["alwaysAutoQueue"] == true) then
 				autoQueue = true
+			elseif (CommFlareDB["communityAutoQueue"] == true) then
+				local player = CommunityFlare_FindClubMemberByName(CommunityFlare_GetPartyLeader())
+				if (player ~= nil) then
+					autoQueue = true
+				end
 			end
 		end
+
+		-- auto queue enabled?
 		if (autoQueue == true) then
 			CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
 			if (cfHasAura == false) then
@@ -956,18 +971,20 @@ local function CommunityFlare_EventHandler(self, event, ...)
 		elseif (text:find("has joined the instance group")) then
 			-- community auto promote leader enabled?
 			if (CommFlareDB["communityAutoPromoteLeader"] == true) then
-				-- do you have lead?
-				local player = UnitName("player")
-				local rank = CommunityFlare_GetRaidRank(player)
-				if (rank == 2) then
-					-- process all sas leaders
-					player = CommunityFlare_GetPlayerName("full")
-					for _,v in ipairs(f.sasLeaders) do
-						if (player == v) then
-							break
-						end
-						if (CommunityFlare_Battleground_PromoteToLeader(v) == true) then
-							break
+				-- not sas leader?
+				local player = CommunityFlare_GetPlayerName("full")
+				if (not CommunityFlare_IsSASLeader(player)) then
+					-- do you have lead?
+					local rank = CommunityFlare_GetRaidRank(UnitName("player"))
+					if (rank == 2) then
+						-- process all sas leaders
+						for _,v in ipairs(f.sasLeaders) do
+							if (player == v) then
+								break
+							end
+							if (CommunityFlare_Battleground_PromoteToLeader(v) == true) then
+								break
+							end
 						end
 					end
 				end
@@ -996,7 +1013,7 @@ local function CommunityFlare_EventHandler(self, event, ...)
 			-- use full list for meso
 			local type = "short"
 			local player = CommunityFlare_GetPlayerName(type)
-			if ((player == "Mesostealthy") or (player == "Shadowness") or (player == "Shotdasherif")) then
+			if ((player == "Mesostealthy") or (player == "Lifestooport") or (player == "Shotdasherif")) then
 				type = "full"
 			end
 
@@ -1027,6 +1044,19 @@ local function CommunityFlare_EventHandler(self, event, ...)
 		if (text == "!cf") then
 			-- send community flare version number
 			SendChatMessage(strformat("Community Flare: %s", cfVersion), "WHISPER", nil, sender)
+		elseif (text == "!pl") then
+			-- not sas leader?
+			local player = CommunityFlare_GetPlayerName("full")
+			if (not CommunityFlare_IsSASLeader(player)) then
+				-- do you have lead?
+				local rank = CommunityFlare_GetRaidRank(UnitName("player"))
+				if (rank == 2) then
+					-- sas leader?
+					if (CommunityFlare_IsSASLeader(sender)) then
+						CommunityFlare_Battleground_PromoteToLeader(sender)
+					end
+				end
+			end
 		elseif ((text == "inv") or (text == "invite")) then
 			-- community auto invite enabled?
 			if (CommFlareDB["communityAutoInvite"] == true) then
@@ -1103,13 +1133,15 @@ local function CommunityFlare_EventHandler(self, event, ...)
 			SendChatMessage("I currently have the Mercenary Contract BUFF! (Are we mercing?)", "PARTY")
 		end
 
-		-- use same settings as auto queue
+		-- check if should auto queue
 		local autoQueue = false
-		if (CommFlareDB["alwaysAutoQueue"] == true) then
-			autoQueue = true
-		elseif (CommFlareDB["communityAutoQueue"] == true) then
-			if (CommunityFlare_FindClubMemberByName(sender) ~= nil) then
+		if (not IsInRaid()) then
+			if (CommFlareDB["alwaysAutoQueue"] == true) then
 				autoQueue = true
+			elseif (CommFlareDB["communityAutoQueue"] == true) then
+				if (CommunityFlare_FindClubMemberByName(sender) ~= nil) then
+					autoQueue = true
+				end
 			end
 		end
 
@@ -1168,8 +1200,8 @@ SlashCmdList["COMF"] = function(cmd)
 		CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
 		print("Deserter: ", cfHasAura)
 	elseif (cmd == "report") then
-		local player = CommunityFlare_GetPlayerName(type)
-		if ((player == "Mesostealthy") or (player == "Shadowness") or (player == "Shotdasherif")) then
+		local player = CommunityFlare_GetPlayerName("short")
+		if ((player == "Mesostealthy") or (player == "Lifestooport") or (player == "Shotdasherif")) then
 			CommunityFlare_ReportGroups()
 		else
 			print("Report: Not quite ready for the masses.")

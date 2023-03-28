@@ -1,3 +1,7 @@
+v0.12 features:
+-Does not auto queue or auto confirm ready check if you are you in a Raid Group. (i.e. Rated Battlegrounds groups)
+-Added new !pl whisper command to pass lead. (Only works if the user has Raid Leader and you are an SAS Leader!)
+
 v0.11 features:
 -Interface -> Addons -> Community Flare = All new settings you can enable
 -- Always automatically queue = This will automatically accept queue requests from anybody when enabled. It will also auto accept /readychecks always too! (Good for SAS Alts Community Members.)
