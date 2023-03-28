@@ -1,10 +1,9 @@
 SLASH_COMF1 = "/comf"
-
--- current stuff
+local cfVersion = "v0.14"
 local CommFlareDB = _G.CommFlareDB or {}
-local cfVersion = "v0.13"
 
 -- localize stuff
+local _G                                  = _G
 local BNGetFriendIndex                    = _G.BNGetFriendIndex
 local BNInviteFriend                      = _G.BNInviteFriend
 local BNSendWhisper                       = _G.BNSendWhisper
@@ -20,7 +19,6 @@ local GetNumSubgroupMembers               = _G.GetNumSubgroupMembers
 local GetPlayerInfoByGUID                 = _G.GetPlayerInfoByGUID
 local GetRaidRosterInfo                   = _G.GetRaidRosterInfo
 local GetRealmName                        = _G.GetRealmName
-local InterfaceOptions_AddCategory        = _G.InterfaceOptions_AddCategory
 local IsInGroup                           = _G.IsInGroup
 local IsInRaid                            = _G.IsInRaid
 local PromoteToAssistant                  = _G.PromoteToAssistant
@@ -31,6 +29,11 @@ local StaticPopupDialogs                  = _G.StaticPopupDialogs
 local StaticPopup_Show                    = _G.StaticPopup_Show
 local StaticPopup1                        = _G.StaticPopup1
 local StaticPopup1Text                    = _G.StaticPopup1Text
+local UIDropDownMenu_AddButton            = _G.UIDropDownMenu_AddButton
+local UIDropDownMenu_CreateInfo           = _G.UIDropDownMenu_CreateInfo
+local UIDropDownMenu_Initialize           = _G.UIDropDownMenu_Initialize
+local UIDropDownMenu_SetText              = _G.UIDropDownMenu_SetText
+local UIDropDownMenu_SetWidth             = _G.UIDropDownMenu_SetWidth
 local UnitFullName                        = _G.UnitFullName
 local UnitGUID                            = _G.UnitGUID
 local UnitInRaid                          = _G.UnitInRaid
@@ -56,7 +59,9 @@ local hooksecurefunc                      = _G.hooksecurefunc
 local ipairs                              = _G.ipairs
 local pairs                               = _G.pairs
 local print                               = _G.print
-local strfind, strformat, strlower = string.find, string.format, string.lower
+local strfind                             = _G.string.find
+local strformat                           = _G.string.format
+local strlower                            = _G.string.lower
 
 -- global variables
 local count = 0
@@ -79,12 +84,15 @@ local cfQueuePopped = false
 local cfEventHandlerLoaded = false
 local cfCommunityName = "Savage Alliance Slayers"
 local cfGroups = {}
+local CF_Dropdown = {}
+local CF_CB_Settings = {}
 
--- create frame
+-- create frames
 local f = CreateFrame("FRAME")
+local options = CreateFrame("FRAME")
 
 -- community leaders by priority list
-f.sasLeaders = {
+local sasLeaders = {
 	"Cinco-CenarionCircle",
 	"Mesostealthy-Dentarg",
 	"Lifestooport-Dentarg",
@@ -95,31 +103,51 @@ f.sasLeaders = {
 }
 
 -- default options
-f.defaults = {
-	["SASID"] = 372791201,
-	["alwaysAutoQueue"] = false,
-	["bnetAutoInvite"] = false,
-	["communityAutoInvite"] = true,
-	["communityAutoPromoteLeader"] = true,
-	["communityAutoQueue"] = true,
-	["communityReporter"] = true,
+local defaultOptions = {
+	SASID = 372791201,
+	alwaysAutoQueue = false,
+	bnetAutoInvite = false,
+	communityAutoAssist = 1,
+	communityAutoInvite = true,
+	communityAutoPromoteLeader = true,
+	communityAutoQueue = true,
+	communityReporter = true,
 }
 
--- add checkbox to settings panel
-local function CommunityFlare_Settings_CBox(parent, field, position, text)
+-- default auto assist options
+local autoAssistOptions = {
+	{ text = "None", value = 0 },
+	{ text = "Leaders Only", value = 1 },
+	{ text = "All SAS Members", value = 2 },
+}
+
+-- refresh settings
+local function Community_Flare_Settings_Refresh()
+	-- setup all checkboxes
+	for field,value in pairs(CF_CB_Settings) do
+		if (CommFlareDB[field] == true) then
+			CF_CB_Settings[field]:SetChecked(true)
+		else
+			CF_CB_Settings[field]:SetChecked(false)
+		end
+	end
+
+	-- setup dropdowns
+	for i=1, #autoAssistOptions do
+		if (CommFlareDB["communityAutoAssist"] == autoAssistOptions[i].value) then
+			UIDropDownMenu_SetText(CF_Dropdown, autoAssistOptions[i].text)
+		end
+	end
+end
+
+-- create checkbox setting
+local position = -20
+local function CommunityFlare_Settings_CreateCheckBox(parent, field, text)
 	-- create the box
 	local cb = CreateFrame("CheckButton", nil, parent, "ChatConfigCheckButtonTemplate")
 	cb:SetPoint("TOPLEFT", 20, position)
 	cb.Text:SetText(text)
-
-	-- handle OnShow
-	cb:SetScript("OnShow", function(self)
-		if (CommFlareDB[field] == true) then
-			self:SetChecked(true)
-		else
-			self:SetChecked(false)
-		end
-	end)
+	position = position - 30
 
 	-- handle OnClick
 	cb:SetScript("OnClick", function()
@@ -129,35 +157,89 @@ local function CommunityFlare_Settings_CBox(parent, field, position, text)
 			CommFlareDB[field] = true
 		end
 	end)
+	CF_CB_Settings[field] = cb
 end
 
--- setup addon options
-function f:SetupOptions()
-	-- header
-	local position = -20
-	local text = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-	text:SetPoint("TOPLEFT", 20, position)
-	text:SetText("General")
-	position = position - 25
-
-	-- checkbox settings
-	CommunityFlare_Settings_CBox(f, "alwaysAutoQueue", position, "Always automatically queue")
-	position = position - 30
-	CommunityFlare_Settings_CBox(f, "communityAutoQueue", position, "Auto queue (If leader is SAS)")
-	position = position - 30
-	CommunityFlare_Settings_CBox(f, "communityAutoInvite", position, "Auto invite SAS (If you are leader and have room)")
-	position = position - 30
-	CommunityFlare_Settings_CBox(f, "bnetAutoInvite", position, "Auto invite BNET (If you are leader and have room)")
-	position = position - 30
-	CommunityFlare_Settings_CBox(f, "communityAutoPromoteLeader", position, "Auto promote leaders in SAS (If you are raid leader)")
-	position = position - 30
-	CommunityFlare_Settings_CBox(f, "communityReporter", position, "Report queues to SAS")
-	position = position - 30
-
-	-- register addon category in settings panel
-	local category = Settings.RegisterCanvasLayoutCategory(f, "Community Flare")
-	Settings.RegisterAddOnCategory(category)
+-- set value for auto assist option
+local function CommunityFlare_DropDown_AutoAssist_OnClick(self, arg1)
+	-- find option being set
+	for i=1, #autoAssistOptions do
+		if (self.value == autoAssistOptions[i].value) then
+			CommFlareDB["communityAutoAssist"] = autoAssistOptions[i].value
+		end
+	end
+	Community_Flare_Settings_Refresh()
 end
+
+-- initialize auto assist drop down
+local function CommunityFlare_DropDown_AutoAssist_Initialize(dropDown, level, ...)
+	-- create the drop down
+	local info = UIDropDownMenu_CreateInfo()
+	info.func = CommunityFlare_DropDown_AutoAssist_OnClick
+	for i=1, #autoAssistOptions do
+		info.text = autoAssistOptions[i].text
+		info.arg1 = i
+		info.arg2 = "autoAssistOptions"
+		info.value = autoAssistOptions[i].value
+		if (CommFlareDB["communityAutoAssist"] == autoAssistOptions[i].value) then
+			info.checked = 1
+			UIDropDownMenu_SetText(dropDown, autoAssistOptions[i].text)
+			dropDown.value = autoAssistOptions[i].value
+		else
+			info.checked = nil
+		end
+		UIDropDownMenu_AddButton(info)
+	end
+end
+
+-- create down setting
+local function CommunityFlare_Settings_CreateDropDown(parent, name, menuList)
+	-- create the dropdown
+	local dropDown = CreateFrame("Frame", name, parent, "UIDropDownMenuTemplate")
+	dropDown:SetPoint("TOPLEFT", 20, position)
+	position = position - 30
+	dropDown.menuList = autoAssistOptions
+	UIDropDownMenu_SetWidth(dropDown, 150)
+	UIDropDownMenu_Initialize(dropDown, CommunityFlare_DropDown_AutoAssist_Initialize)
+	UIDropDownMenu_SetText(dropDown, name)
+	return dropDown
+end
+
+-- header
+local header = options:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+header:SetPoint("TOPLEFT", 20, position)
+header:SetText("General")
+position = position - 25
+
+-- create checkboxes
+CommunityFlare_Settings_CreateCheckBox(options, "alwaysAutoQueue", "Always automatically queue")
+CommunityFlare_Settings_CreateCheckBox(options, "communityAutoQueue", "Auto queue (If leader is SAS)")
+CommunityFlare_Settings_CreateCheckBox(options, "communityAutoInvite", "Auto invite SAS (If you are leader and have room)")
+CommunityFlare_Settings_CreateCheckBox(options, "bnetAutoInvite", "Auto invite BNET (If you are leader and have room)")
+CommunityFlare_Settings_CreateCheckBox(options, "communityAutoPromoteLeader", "Auto promote leaders in SAS (If you are raid leader)")
+CommunityFlare_Settings_CreateCheckBox(options, "communityReporter", "Report queues to SAS")
+position = position - 20
+
+-- battleground settings
+header = options:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+header:SetPoint("TOPLEFT", 20, position)
+header:SetText("Battleground Settings")
+position = position - 25
+
+-- auto assist
+header = options:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+header:SetPoint("TOPLEFT", 20, position)
+header:SetTextColor(1.0, 1.0, 1.0, 1.0)
+header:SetText("Auto assist inside battlegrounds (If you are raid leader)")
+position = position - 20
+
+-- create dropdowns
+CF_Dropdown = CommunityFlare_Settings_CreateDropDown(options, "Auto assist", "autoAssistOptions")
+
+-- register addon category in settings panel
+options:SetScript("OnShow", Community_Flare_Settings_Refresh)
+local category = Settings.RegisterCanvasLayoutCategory(options, "Community Flare")
+Settings.RegisterAddOnCategory(category)
 
 -- register all necessary events
 f:RegisterEvent("ADDON_LOADED")
@@ -231,7 +313,7 @@ end
 
 -- is sas leader?
 local function CommunityFlare_IsSASLeader(name)
-	for _,v in ipairs(f.sasLeaders) do
+	for _,v in ipairs(sasLeaders) do
 		if (name == v) then
 			return true
 		end
@@ -720,7 +802,17 @@ local function CommunityFlare_Battleground_Setup(type)
 
 					-- player has raid leader?
 					if (rank == 2) then
-						PromoteToAssistant(mi.name)
+						local autoPromote = false
+						if (CommFlareDB["communityAutoAssist"] == 1) then
+							if (CommunityFlare_IsSASLeader(mi.name)) then
+								autoPromote = true
+							end
+						elseif (CommFlareDB["communityAutoAssist"] == 2) then
+							autoPromote = true
+						end
+						if (autoPromote == true) then
+							PromoteToAssistant(mi.name)
+						end
 					end
 
 					-- next
@@ -738,9 +830,20 @@ end
 -- setup stuff to automatically accept queues
 local function CommunityFlare_AutoAcceptQueues()
 	LFDRoleCheckPopupAcceptButton:SetScript("OnShow", function()
-		-- check if should auto queue
-		local autoQueue = false
+		-- capable of auto queuing?
+		local autoQueueable = false
 		if (not IsInRaid()) then
+			autoQueueable = true
+		else
+			-- larger than rated battleground count?
+			if (GetNumGroupMembers() > 10) then
+				autoQueueable = true
+			end
+		end
+
+		-- auto queueable?
+		local autoQueue = false
+		if (autoQueueable == true) then
 			if (CommFlareDB["alwaysAutoQueue"] == true) then
 				autoQueue = true
 			elseif (CommFlareDB["communityAutoQueue"] == true) then
@@ -748,6 +851,10 @@ local function CommunityFlare_AutoAcceptQueues()
 				if (player ~= nil) then
 					autoQueue = true
 				end
+			end
+		else
+			-- larger raid?
+			if (GetNumGroupMembers() > 10) then
 			end
 		end
 
@@ -880,18 +987,18 @@ local function CommunityFlare_EventHandler(self, event, ...)
 	if (event == "ADDON_LOADED") then
 		local addOnName = ...
 		if (addOnName == "Community_Flare") then
+			-- copy initial variables or create empty
 			CommFlareDB = _G.CommFlareDB or {}
-			if (CommFlareDB) then
-				for opt,val in pairs(f.defaults) do
-					if (CommFlareDB[opt] == nil) then
-						CommFlareDB[opt] = val
-					end
-				end
-			else
-				CommFlareDB = f.defaults
+			if (not CommFlareDB) then
+				CommFlareDB = defaultOptions
 			end
-			self.db = CommFlareDB
-			self:SetupOptions()
+
+			-- initialize any settings not set
+			for key,value in pairs(defaultOptions) do
+				if (not CommFlareDB[key]) then
+					CommFlareDB[key] = value
+				end
+			end
 		end
 	elseif (event == "CHAT_MSG_BN_WHISPER") then
 		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
@@ -968,7 +1075,7 @@ local function CommunityFlare_EventHandler(self, event, ...)
 					local rank = CommunityFlare_GetRaidRank(UnitName("player"))
 					if (rank == 2) then
 						-- process all sas leaders
-						for _,v in ipairs(f.sasLeaders) do
+						for _,v in ipairs(sasLeaders) do
 							if (player == v) then
 								break
 							end
@@ -1197,7 +1304,7 @@ SlashCmdList["COMF"] = function(cmd)
 			print("Report: Not quite ready for the masses.")
 		end
 	elseif (cmd == "reset all") then
-		CommFlareDB = f.defaults
+		CommFlareDB = defaultOptions
 	elseif (cmd == "sasid") then
 		-- get proper sas community id
 		CommFlareDB["SASID"] = CommunityFlare_FindClubIDByName(cfCommunityName)

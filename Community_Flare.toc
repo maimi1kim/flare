@@ -1,6 +1,6 @@
 ## Title: Community Flare
 ## Author: Mesostealthy
-## Version: v0.13
+## Version: v0.14
 ## SavedVariablesPerCharacter: CommFlareDB
 ## Interface: 100000
 
