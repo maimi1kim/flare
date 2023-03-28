@@ -1,3 +1,24 @@
+v0.23 features:
+-New setting to ask to kick users who are AFK when queuing up. (Disabled by default, has 3, 4, 5, 6 seconds delay settings.)
+-New setting to enable Auto Queing + Reporting Queue stuff for Random Battlegrounds.
+-New setting to enable Auto Queing + Reporting Queue stuff for Brawls.
+-Epic Battlegrounds and Regular Battlegrounds specific queues are now reportable with setting/s enabled.
+-When you leave a queue, or miss a queue, it sends a message to your PARTY that you've left/missed the queue.
+--This so is your party knows that you did not enter the queue, so they may choose not to as well.
+-Auto invites people who use the quick join your party for Battle.NET friends and are NOT in SAS.
+-If you have community reporter enabled, it asks you to report when your group has filled up.
+-New /comf inactive command to look for people with 0 damage and 0 healing done.
+-!status reports the final status of completed matches when match is over.
+-Creates database for SAS members from main and ALTS communities.
+-Asks to kick dead or offline players before queuing up.
+--NOTE: The database is filled by which community/communities you are in. (It pools main + ALTS together.)
+---Logging into a toon in the main SAS community will fill the database with main community members.
+---Logging into a toon in the SAS ALTS community will fill the database with alts community members.
+-Added new global functions to check database if player is an SAS Leader or Member.
+-INV whispers or Battle.Net whispers do not require group leader to invite anymore.
+-/comf uses above database when looking for SAS members.
+-/comf also reports any SAS mercenaries.
+
 v0.22 features:
 -Fixed /comf command that was broken in previous v0.21 version!
 -Fixed !cf replies to send back version instead of unspecified.
@@ -58,7 +79,7 @@ v0.11 features:
 -Automatically declines group invites if you are in queue and inviting the person would remove you from the queue due to deserter and/or mercenary buffs.
 -Detects !cf in party chat, whispers and Battle.NET chat to check if the person and/or people have Community Flare installed.
 -When gates open when a Battleground starts, it will run a shorter version of the /comf command automatically.
--Announces to the party if you have a Deserter debuff when a /readcheck is issued, and clicks NO that you are not ready.
+-Announces to the party if you have a Deserter debuff when a /readycheck is issued, and clicks NO that you are not ready.
 -Announces to the party if you have a Mercenary Contract buff when a /readycheck is issued.
 -Parses for arguments to be used with /comf for debugging purposes, i.e. /comf {gpn, gpl, ggc, *list*, phd, status, usage}
 -Local-ized a lot of functions/variables and made some local variables "global" local variables to save memory as well.

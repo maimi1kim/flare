@@ -1,6 +1,6 @@
 ## Interface: 100005
 ## Title: Community Flare
-## Version: v0.22
+## Version: v0.23
 ## Author: Mesostealthy
 ## SavedVariables: CommunityFlareDB
 ## OptionalDeps: Ace3
