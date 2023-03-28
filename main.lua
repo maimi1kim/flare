@@ -7,7 +7,7 @@ local CommFlareDB = {}
 local CF = {
 	-- strings
 	CommName = "Savage Alliance Slayers",
-	Version = "v0.18",
+	Version = "v0.19",
 
 	-- booleans
 	AutoPromote = false,
@@ -1451,13 +1451,11 @@ local function CommunityFlare_Get_Current_Status()
 	end
 end
 
-
 -- process status check
 local function CommunityFlare_Process_Status_Check(sender)
 	-- currently in battleground?
 	if (PvPIsBattleground() == true) then
 		-- update battleground status
-		local text = ""
 		if (CommunityFlare_Update_Battleground_Status() == true) then
 			-- has match started yet?
 			if (PvPGetActiveMatchDuration() > 0) then
@@ -1466,37 +1464,31 @@ local function CommunityFlare_Process_Status_Check(sender)
 				CF.Timer.Seconds = math.floor(CF.Timer.MilliSeconds / 1000)
 				CF.Timer.Minutes = math.floor(CF.Timer.Seconds / 60)
 				CF.Timer.Seconds = CF.Timer.Seconds - (CF.Timer.Minutes * 60)
-				
+
 				-- alterac valley or korrak's revenge?
 				if ((CF.MapID == 91) or (CF.MapID == 1537)) then
-					-- build av / korrak's status
-					test = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.AV.Scores.Alliance, CF.AV.Scores.Horde, CF.AV.Counts.Bunkers, CF.AV.Counts.Towers)
+					-- reply to sender with alterac valley status
+					CommunityFlare_SendMessage(sender, strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.AV.Scores.Alliance, CF.AV.Scores.Horde, CF.AV.Counts.Bunkers, CF.AV.Counts.Towers))
 				-- isle of conquest?
 				elseif (CF.MapID == 169) then
-					-- build ioc status
-					text = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.IOC.Scores.Alliance, CF.IOC.Counts.Alliance, CF.IOC.Scores.Horde, CF.IOC.Counts.Horde)
+					-- reply to sender with isle of conquest status
+					CommunityFlare_SendMessage(sender, strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.IOC.Scores.Alliance, CF.IOC.Counts.Alliance, CF.IOC.Scores.Horde, CF.IOC.Counts.Horde))
 				-- battle for wintergrasp?
 				elseif (CF.MapID == 1334) then
-					-- build wintergrasp status
-					text = strformat("%s: %s; Time Elapsed = %d minutes, %d seconds; Towers Destroyed: %d/3", CF.MapInfo.name, CF.WG.TimeRemaining, CF.Timer.Minutes, CF.Timer.Seconds, CF.WG.Counts.Towers)
+					-- reply to sender with wintergrasp status
+					CommunityFlare_SendMessage(sender, strformat("%s: %s; Time Elapsed = %d minutes, %d seconds; Towers Destroyed: %d/3", CF.MapInfo.name, CF.WG.TimeRemaining, CF.Timer.Minutes, CF.Timer.Seconds, CF.WG.Counts.Towers))
 				-- ashran?
 				elseif (CF.MapID == 1478) then
-					-- build ashran status
-					text = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.ASH.Scores.Alliance, CF.ASH.Scores.Horde, CF.ASH.Jeron, CF.ASH.Rylai)
+					-- reply to sender with ashran status
+					CommunityFlare_SendMessage(sender, strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.ASH.Scores.Alliance, CF.ASH.Scores.Horde, CF.ASH.Jeron, CF.ASH.Rylai))
 				end
 			else
-				-- gates not opened yet
-				text = strformat("%s: Just entered match. Gates not opened yet!", CF.MapInfo.name)
+				-- reply to sender with map name, gates not opened yet
+				CommunityFlare_SendMessage(sender, strformat("%s: Just entered match. Gates not opened yet!", CF.MapInfo.name))
 			end
 		else
-			-- not an epic battleground
-			text = strformat("%s: Not an Epic Battleground to track.", CF.MapInfo.name)
-		end
-
-		-- has text?
-		if (text ~= "") then
-			-- send message
-			CommunityFlare_SendMessage(sender, text)
+			-- reply to sender, not epic battleground
+			CommunityFlare_SendMessage(sender, strformat("%s: Not an Epic Battleground to track.", CF.MapInfo.name))
 		end
 	else
 		-- check for queued battleground
@@ -1512,8 +1504,6 @@ local function CommunityFlare_Process_Status_Check(sender)
 					CF.Timer.Minutes = math.floor(CF.Timer.Seconds / 60)
 					CF.Timer.Seconds = CF.Timer.Seconds - (CF.Timer.Minutes * 60)
 					CommunityFlare_SendMessage(sender, strformat("%s has been queued for %d minutes and %d seconds.", CF.Leader, CF.Timer.Minutes, CF.Timer.Seconds))
-
-					-- finished
 					return
 				end
 			end
@@ -1548,20 +1538,20 @@ local function CommunityFlare_Event_Chat_BattleNet_Whisper(...)
 	text = strlower(text)
 	if (text == "!cf") then
 		-- send community flare version number
-		CommunityFlare_SendMessage(sender, strformat("Community Flare: %s", CF.Version))
+		CommunityFlare_SendMessage(bnSenderID, strformat("Community Flare: %s", CF.Version))
 	-- status check?
 	elseif (text == "!status") then
 		-- process status check
-		CommunityFlare_Process_Status_Check(sender)
+		CommunityFlare_Process_Status_Check(bnSenderID)
 	-- asking for invite?
 	elseif ((text == "inv") or (text == "invite")) then
 		-- battle net auto invite enabled?
 		if (CommFlareDB.bnetAutoInvite == "true") then
 			if (CommunityFlare_IsInBattleground() == true) then
-				CommunityFlare_SendMessage(sender, "Sorry, currently in Battleground now.")
+				CommunityFlare_SendMessage(bnSenderID, "Sorry, currently in Battleground now.")
 			else
 				-- get bnet friend index
-				local index = BNGetFriendIndex(sender)
+				local index = BNGetFriendIndex(bnSenderID)
 				if (index ~= nil) then
 					-- process all bnet accounts logged in
 					local numGameAccounts = BattleNetGetFriendNumGameAccounts(index);
@@ -1571,7 +1561,7 @@ local function CommunityFlare_Event_Chat_BattleNet_Whisper(...)
 						if (gameAccountInfo.playerGuid) then
 							if (CommunityFlare_IsGroupLeader() == true) then
 								if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
-									CommunityFlare_SendMessage(sender, "Sorry, group is currently full.")
+									CommunityFlare_SendMessage(bnSenderID, "Sorry, group is currently full.")
 								else
 									BNInviteFriend(gameAccountInfo.gameAccountID)
 								end

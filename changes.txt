@@ -1,6 +1,10 @@
+v0.19 features:
+-Fixed some bugs with !status command introduced in v0.17 or v0.18.
+-Fixed bug with BattleNet whispers.
+
 v0.18 features:
 -Report x5 Joined Queue now also says Mercenary if you are mercing and queue up.
--!cf command now reports how long the Epic Battleground has been going for.
+-!status command now reports how long the Epic Battleground has been going for.
 -Added Cincõ-BlackwaterRaiders to SAS Leaders.
 
 v0.17 features:
