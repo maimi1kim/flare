@@ -1,6 +1,18 @@
+## Interface: 100005
 ## Title: Community Flare
+## Version: v0.21
 ## Author: Mesostealthy
-## Version: v0.20
-## SavedVariablesPerCharacter: CommFlareDB
-## Interface: 100002
+## SavedVariables: CommunityFlareDB
+## OptionalDeps: Ace3
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\AceAddon-3.0\AceAddon-3.0.xml
+Libs\AceEvent-3.0\AceEvent-3.0.xml
+Libs\AceDB-3.0\AceDB-3.0.xml
+Libs\AceDBOptions-3.0\AceDBOptions-3.0.xml
+Libs\AceComm-3.0\AceComm-3.0.xml
+Libs\AceConsole-3.0\AceConsole-3.0.xml
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceConfig-3.0\AceConfig-3.0.xml
 main.lua

@@ -1,3 +1,8 @@
+v0.21 features:
+-Changed Options -> Addons -> Community Flare to use Ace3 library with profiles.
+-Added Auto Queue Options to allow automatically queing for Epic Battlegrounds and normal Battlegrounds.
+-Bumped TOC to v10.0.5
+
 v0.20 features:
 -!status now sends a reply to the sender when the Battleground has finished.
 -Ready check and Joined Queue messages will add Whisper INV for auto invite if option is enabed.
