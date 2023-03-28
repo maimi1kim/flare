@@ -1,0 +1,22 @@
+v0.11 (rc2) features:
+-Interface -> Addons -> Community Flare = All new settings you can enable
+-- Always automatically queue = This will automatically accept queue requests from anybody when enabled. It will also auto accept /readychecks always too! (Good for SAS Alts Community Members.)
+-- Auto queue (If leader is SAS) = This is the standard feature that will auto queue if your group leader is in SAS. It will now auto accept /readycheck's if the group leader is SAS too!
+-- Auto invite SAS (If you are leader and have room) = SAS members can whisper you /w {you} inv or invite and automatically get invited to your party if you have room.
+-- Auto invite BNET (If you are leader and have room) = Your Battle.NET friends can send you a message inv or invite on Battle.NET chat and automatically get invited to your party if you have room.
+-- Auto promote leaders in SAS (If you are raid leader) = If you have raid leader, it will automatically pass raid leader to an SAS member if they are in the Battleground.
+-- Report queues to SAS = If you are group leader, when you Queue up for Random Epic Battlegrounds, it pops up a message to send to SAS x/5 Joined Queue, Dropped Queue, etc.
+-If you have the Deserter debuff, and your Leader queues up for a Battleground, it will message the party saying you have Deserter and leave the group automatically.
+-Automatically declines group invites if you are in queue and inviting the person would remove you from the queue due to deserter and/or mercenary buffs.
+-Detects !cf in party chat, whispers and Battle.NET chat to check if the person and/or people have Community Flare installed.
+-When gates open when a Battleground starts, it will run a shorter version of the /comf command automatically.
+-Announces to the party if you have a Deserter debuff when a /readcheck is issued, and clicks NO that you are not ready.
+-Announces to the party if you have a Mercenary Contract buff when a /readycheck is issued.
+-Parses for arguments to be used with /comf for debugging purposes, i.e. /comf {gpn, gpl, ggc, *list*, phd, status, usage}
+-Local-ized a lot of functions/variables and made some local variables "global" local variables to save memory as well.
+-Added base framework for Community Flare to be able to talk to other Community Flare users.
+-Added base framework to search for other SAS members currently in queue.
+-Variables are saved per Character per Account now, not globally.
+-Added Report to SAS feature for /readycheck confirmed.
+-Detects Vengenace Demon Hunters as Tanks properly now.
+-Can upgrade Honor Gear after a Popup Box issued.
