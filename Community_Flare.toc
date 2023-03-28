@@ -1,6 +1,6 @@
 ## Interface: 90005
 ## Title: Community Flare
 ## Author: Mesostealthy
-## Version: 0.04
+## Version: 0.05
 
 main.lua
