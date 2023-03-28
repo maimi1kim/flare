@@ -1,3 +1,8 @@
+v0.18 features:
+-Report x5 Joined Queue now also says Mercenary if you are mercing and queue up.
+-!cf command now reports how long the Epic Battleground has been going for.
+-Added Cincõ-BlackwaterRaiders to SAS Leaders.
+
 v0.17 features:
 -Boolean settings converted to strings, hopefully will fix initialization properly now!
 -Report x/5 Joined Queue now also sends Estimated Wait time.

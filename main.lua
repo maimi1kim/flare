@@ -7,7 +7,7 @@ local CommFlareDB = {}
 local CF = {
 	-- strings
 	CommName = "Savage Alliance Slayers",
-	Version = "v0.17",
+	Version = "v0.18",
 
 	-- booleans
 	AutoPromote = false,
@@ -79,6 +79,7 @@ local queueData
 -- initialize leaders
 local sasLeaders = {
 	"Cinco-CenarionCircle",
+	"Cincõ-BlackwaterRaiders",
 	"Mesostealthy-Dentarg",
 	"Lifestooport-Dentarg",
 	"Shotdasherif-Dentarg",
@@ -120,6 +121,7 @@ local DevTools_Dump                             = _G.DevTools_Dump
 local GetAddOnCPUUsage                          = _G.GetAddOnCPUUsage
 local GetAddOnMemoryUsage                       = _G.GetAddOnMemoryUsage
 local GetBattlefieldEstimatedWaitTime           = _G.GetBattlefieldEstimatedWaitTime
+local GetBattlefieldInstanceRunTime             = _G.GetBattlefieldInstanceRunTime
 local GetBattlefieldPortExpiration              = _G.GetBattlefieldPortExpiration
 local GetBattlefieldStatus                      = _G.GetBattlefieldStatus
 local GetBattlefieldTimeWaited                  = _G.GetBattlefieldTimeWaited
@@ -1455,33 +1457,46 @@ local function CommunityFlare_Process_Status_Check(sender)
 	-- currently in battleground?
 	if (PvPIsBattleground() == true) then
 		-- update battleground status
+		local text = ""
 		if (CommunityFlare_Update_Battleground_Status() == true) then
 			-- has match started yet?
 			if (PvPGetActiveMatchDuration() > 0) then
+				-- calculate time elapsed
+				CF.Timer.MilliSeconds = GetBattlefieldInstanceRunTime()
+				CF.Timer.Seconds = math.floor(CF.Timer.MilliSeconds / 1000)
+				CF.Timer.Minutes = math.floor(CF.Timer.Seconds / 60)
+				CF.Timer.Seconds = CF.Timer.Seconds - (CF.Timer.Minutes * 60)
+				
 				-- alterac valley or korrak's revenge?
 				if ((CF.MapID == 91) or (CF.MapID == 1537)) then
-					-- reply to sender with alterac valley status
-					CommunityFlare_SendMessage(sender, strformat("%s: Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4", CF.MapInfo.name, CF.AV.Scores.Alliance, CF.AV.Scores.Horde, CF.AV.Counts.Bunkers, CF.AV.Counts.Towers))
+					-- build av / korrak's status
+					test = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Bunkers Left = %d/4; Towers Left = %d/4", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.AV.Scores.Alliance, CF.AV.Scores.Horde, CF.AV.Counts.Bunkers, CF.AV.Counts.Towers)
 				-- isle of conquest?
 				elseif (CF.MapID == 169) then
-					-- reply to sender with isle of conquest status
-					CommunityFlare_SendMessage(sender, strformat("%s: Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3", CF.MapInfo.name, CF.IOC.Scores.Alliance, CF.IOC.Counts.Alliance, CF.IOC.Scores.Horde, CF.IOC.Counts.Horde))
+					-- build ioc status
+					text = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Gates Destroyed: %d/3; Horde = %s; Gates Destroyed: %d/3", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.IOC.Scores.Alliance, CF.IOC.Counts.Alliance, CF.IOC.Scores.Horde, CF.IOC.Counts.Horde)
 				-- battle for wintergrasp?
 				elseif (CF.MapID == 1334) then
-					-- reply to sender with wintergrasp status
-					CommunityFlare_SendMessage(sender, strformat("%s: %s; Towers Destroyed: %d/3", CF.MapInfo.name, CF.WG.TimeRemaining, CF.WG.Counts.Towers))
+					-- build wintergrasp status
+					text = strformat("%s: %s; Time Elapsed = %d minutes, %d seconds; Towers Destroyed: %d/3", CF.MapInfo.name, CF.WG.TimeRemaining, CF.Timer.Minutes, CF.Timer.Seconds, CF.WG.Counts.Towers)
 				-- ashran?
 				elseif (CF.MapID == 1478) then
-					-- reply to sender with ashran status
-					CommunityFlare_SendMessage(sender, strformat("%s: Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s", CF.MapInfo.name, CF.ASH.Scores.Alliance, CF.ASH.Scores.Horde, CF.ASH.Jeron, CF.ASH.Rylai))
+					-- build ashran status
+					text = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s", CF.MapInfo.name, CF.Timer.Minutes, CF.Timer.Seconds, CF.ASH.Scores.Alliance, CF.ASH.Scores.Horde, CF.ASH.Jeron, CF.ASH.Rylai)
 				end
 			else
-				-- reply to sender with map name, gates not opened yet
-				CommunityFlare_SendMessage(sender, strformat("%s: Just entered match. Gates not opened yet!", CF.MapInfo.name))
+				-- gates not opened yet
+				text = strformat("%s: Just entered match. Gates not opened yet!", CF.MapInfo.name)
 			end
 		else
-			-- reply to sender, not epic battleground
-			CommunityFlare_SendMessage(sender, strformat("%s: Not an Epic Battleground to track.", CF.MapInfo.name))
+			-- not an epic battleground
+			text = strformat("%s: Not an Epic Battleground to track.", CF.MapInfo.name)
+		end
+
+		-- has text?
+		if (text ~= "") then
+			-- send message
+			CommunityFlare_SendMessage(sender, text)
 		end
 	else
 		-- check for queued battleground
@@ -1509,23 +1524,28 @@ local function CommunityFlare_Process_Status_Check(sender)
 	end
 end
 
--- process group invite confirmation
-local function CommunityFlare_Event_Group_Invite_Confirmation(text)
-	-- has text?
-	if (not text and (text ~= "")) then
-		-- you will be removed from random epic battleground?
-		text = strlower(text)
-		if (strfind(text, "you will be removed from") and strfind(text, "random epic battleground")) then
-			if (StaticPopup1:IsShown()) then
-				StaticPopup1Button2:Click()
+-- process addon loaded
+local function CommunityFlare_Event_Addon_Loaded(...)
+	local addon = ...
+	if (addon == addonName) then
+		-- initialize settings
+		CommFlareDB = _G.CommFlareDB or {}
+		for _,v in ipairs(defaultOptions) do
+			if (not CommFlareDB[v.key]) then
+				CommFlareDB[v.key] = v.value
+			elseif (type(CommFlareDB[v.key]) ~= v.type) then
+				CommFlareDB[v.key] = v.value
 			end
 		end
 	end
 end
 
--- process battle net whisper
-local function CommunityFlare_Event_BattleNet_Whisper(sender, text)
+-- process chat battle net whisper
+local function CommunityFlare_Event_Chat_BattleNet_Whisper(...)
+	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
+
 	-- version check?
+	text = strlower(text)
 	if (text == "!cf") then
 		-- send community flare version number
 		CommunityFlare_SendMessage(sender, strformat("Community Flare: %s", CF.Version))
@@ -1565,101 +1585,12 @@ local function CommunityFlare_Event_BattleNet_Whisper(sender, text)
 	end
 end
 
--- process club member added
-local function CommunityFlare_Event_Club_Member_Added(clubId, memberId)
-	-- sas community?
-	if (CommFlareDB.SASID == clubId) then
-		-- get member info
-		memberInfo = ClubGetMemberInfo(clubId, memberId)
-		if (memberInfo ~= nil) then
-			-- name not found?
-			if (not memberInfo.name) then
-				-- try again, 2 seconds later
-				TimerAfter(2, function()
-					-- get member info
-					memberInfo = ClubGetMemberInfo(clubId, memberId)
+-- process chat party message
+local function CommunityFlare_Event_Chat_Message_Party(...)
+	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
 
-					-- name not found?
-					if ((memberInfo ~= nil) and (memberInfo.name ~= nil)) then
-						-- display / update
-						print(strformat("Club Member Added: %s (%d, %d)", memberInfo.name, clubId, memberId))
-						CommunityFlare_Update_PlayerCache(memberInfo)
-					else
-						-- failed
-						print("CLUB_MEMBER_ADDED: name still not found.")
-					end
-				end)
-			else
-				-- display / update
-				print(strformat("Club Member Added: %s (%d, %d)", memberInfo.name, clubId, memberId))
-				CommunityFlare_Update_PlayerCache(memberInfo)
-			end
-		end
-	end
-end
-
--- process club member removed
-local function CommunityFlare_Event_Club_Member_Removed(clubId, memberId)
-	-- sas community?
-	if (CommFlareDB.SASID == clubId) then
-		-- get member info
-		memberInfo = ClubGetMemberInfo(clubId, memberId);
-		if (memberInfo ~= nil) then
-			-- remove from player cache
-			if (memberInfo.name ~= nil) then
-				print(strformat("Club Member Removed: %s (%d, %d)", memberInfo.name, clubId, memberId))
-			else
-				DevTools_Dump(memberInfo)
-			end
-			CommunityFlare_RemoveFrom_PlayerCache(memberInfo)
-		end
-	end
-end
-
--- process monster yell message
-local function CommunityFlare_Event_Message_Monster_Yell(sender, text)
-	-- Ashran, jeron killed?
-	if (text:find("jeron emberfall has been slain")) then
-		-- jeron emberfall killed
-		CF.ASH.Jeron = "Killed"
-	-- Ashran, rylai killed?
-	elseif (text:find("rylai crestfall has been slain")) then
-		-- rylai crestfall killed
-		CF.ASH.Rylai = "Killed"
-	end
-end
-
--- process notify pvp afk result
-local function CommunityFlare_Event_Notify_PVP_AFK_Result(offender, numBlackMarksOnOffender, numPlayersIHaveReported)
-	-- hmmm, what is this?
-	print(strformat("NOTIFY_PVP_AFK_RESULT: %s = %s, %s", offender, numBlackMarksOnOffender, numPlayersIHaveReported))
-end
-
--- process party invite request
-local function CommunityFlare_Event_PartyInvite_Request(sender)
-	-- verify player does not have deserter debuff
-	CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
-	if (CF.HasAura == false) then
-		-- community auto invite enabled?
-		if (CommFlareDB.communityAutoInvite == "true") then
-			if (CommunityFlare_FindClubMemberByName(sender) ~= nil) then
-				if (LFGInvitePopup:IsShown()) then
-					LFGInvitePopupAcceptButton:Click()
-				end
-			end
-		end
-	else
-		-- send whisper back that you have deserter
-		CommunityFlare_SendMessage(sender, "Sorry, I currently have Deserter!")
-		if (LFGInvitePopup:IsShown()) then
-			LFGInvitePopupDeclineButton:Click()
-		end
-	end
-end
-
--- process party message
-local function CommunityFlare_Event_Message_Party(sender, text)
 	-- skip messages from yourself
+	text = strlower(text)
 	if (CommunityFlare_GetPlayerName("full") ~= sender) then
 		if (text == "!cf") then
 			-- send community flare version number
@@ -1681,7 +1612,14 @@ local function CommunityFlare_Report_Joined_With_Estimated_Time()
 				CF.Timer.Seconds = math.floor(CF.Timer.MilliSeconds / 1000)
 				CF.Timer.Minutes = math.floor(CF.Timer.Seconds / 60)
 				CF.Timer.Seconds = CF.Timer.Seconds - (CF.Timer.Minutes * 60)
-				CommunityFlare_PopupBox(strformat("%s Joined Queue! Estimated Wait: %d minutes, %d seconds", CommunityFlare_GetGroupCount(), CF.Timer.Minutes, CF.Timer.Seconds))
+
+				-- does the player have the mercenary buff?
+				CommunityFlare_CheckForAura("player", "HELPFUL", "Mercenary Contract")
+				if (CF.HasAura == true) then
+					CommunityFlare_PopupBox(strformat("%s Joined Mercenary Queue! Estimated Wait: %d minutes, %d seconds", CommunityFlare_GetGroupCount(), CF.Timer.Minutes, CF.Timer.Seconds))
+				else
+					CommunityFlare_PopupBox(strformat("%s Joined Queue! Estimated Wait: %d minutes, %d seconds", CommunityFlare_GetGroupCount(), CF.Timer.Minutes, CF.Timer.Seconds))
+				end
 			else
 				-- try again
 				TimerAfter(0.2, CommunityFlare_Report_Joined_With_Estimated_Time)
@@ -1691,8 +1629,11 @@ local function CommunityFlare_Report_Joined_With_Estimated_Time()
 end
 
 -- process system message
-local function CommunityFlare_Event_Message_System(sender, text)
+local function CommunityFlare_Event_Chat_Message_System(...)
+	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
+
 	-- everyone is ready?
+	text = strlower(text)
 	if (text:find("everyone is ready")) then
 		-- community reporter enabled?
 		if (CommFlareDB.communityReporter == "true") then
@@ -1793,9 +1734,12 @@ local function CommunityFlare_Event_Message_System(sender, text)
 	end
 end
 
--- process whisper message
-local function CommunityFlare_Event_Message_Whisper(sender, text)
+-- process chat whisper message
+local function CommunityFlare_Event_Chat_Message_Whisper(...)
+	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
+
 	-- version check?
+	text = strlower(text)
 	if (text == "!cf") then
 		-- send community flare version number
 		CommunityFlare_SendMessage(sender, strformat("Community Flare: %s", CF.Version))
@@ -1840,6 +1784,183 @@ local function CommunityFlare_Event_Message_Whisper(sender, text)
 	end
 end
 
+-- process chat monster yell message
+local function CommunityFlare_Event_Chat_Message_Monster_Yell(...)
+	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
+
+	-- Ashran, jeron killed?
+	text = strlower(text)
+	if (text:find("jeron emberfall has been slain")) then
+		-- jeron emberfall killed
+		CF.ASH.Jeron = "Killed"
+	-- Ashran, rylai killed?
+	elseif (text:find("rylai crestfall has been slain")) then
+		-- rylai crestfall killed
+		CF.ASH.Rylai = "Killed"
+	end
+end
+
+-- process club member added
+local function CommunityFlare_Event_Club_Member_Added(...)
+	local clubId, memberId = ...
+
+	-- sas community?
+	if (CommFlareDB.SASID == clubId) then
+		-- get member info
+		memberInfo = ClubGetMemberInfo(clubId, memberId)
+		if (memberInfo ~= nil) then
+			-- name not found?
+			if (not memberInfo.name) then
+				-- try again, 2 seconds later
+				TimerAfter(2, function()
+					-- get member info
+					memberInfo = ClubGetMemberInfo(clubId, memberId)
+
+					-- name not found?
+					if ((memberInfo ~= nil) and (memberInfo.name ~= nil)) then
+						-- display / update
+						print(strformat("Club Member Added: %s (%d, %d)", memberInfo.name, clubId, memberId))
+						CommunityFlare_Update_PlayerCache(memberInfo)
+					else
+						-- failed
+						print("CLUB_MEMBER_ADDED: name still not found.")
+					end
+				end)
+			else
+				-- display / update
+				print(strformat("Club Member Added: %s (%d, %d)", memberInfo.name, clubId, memberId))
+				CommunityFlare_Update_PlayerCache(memberInfo)
+			end
+		end
+	end
+end
+
+-- process club member removed
+local function CommunityFlare_Event_Club_Member_Removed(...)
+	local clubId, memberId = ...
+
+	-- sas community?
+	if (CommFlareDB.SASID == clubId) then
+		-- get member info
+		memberInfo = ClubGetMemberInfo(clubId, memberId);
+		if (memberInfo ~= nil) then
+			-- remove from player cache
+			if (memberInfo.name ~= nil) then
+				print(strformat("Club Member Removed: %s (%d, %d)", memberInfo.name, clubId, memberId))
+			else
+				DevTools_Dump(memberInfo)
+			end
+			CommunityFlare_RemoveFrom_PlayerCache(memberInfo)
+		end
+	end
+end
+
+-- process group invite confirmation
+local function CommunityFlare_Event_Group_Invite_Confirmation()
+	-- has text?
+	local text = StaticPopup1Text["text_arg1"]
+	if (not text and (text ~= "")) then
+		-- you will be removed from random epic battleground?
+		text = strlower(text)
+		if (strfind(text, "you will be removed from") and strfind(text, "random epic battleground")) then
+			if (StaticPopup1:IsShown()) then
+				StaticPopup1Button2:Click()
+			end
+		end
+	end
+end
+
+-- process notify pvp afk result
+local function CommunityFlare_Event_Notify_PVP_AFK_Result(...)
+	local offender, numBlackMarksOnOffender, numPlayersIHaveReported = ...
+
+	-- hmmm, what is this?
+	print(strformat("NOTIFY_PVP_AFK_RESULT: %s = %s, %s", offender, numBlackMarksOnOffender, numPlayersIHaveReported))
+end
+
+-- process party invite request
+local function CommunityFlare_Event_PartyInvite_Request(...)
+	local sender, _, _, _, _, _, guid, questSessionActive = ...
+
+	-- verify player does not have deserter debuff
+	CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
+	if (CF.HasAura == false) then
+		-- community auto invite enabled?
+		if (CommFlareDB.communityAutoInvite == "true") then
+			if (CommunityFlare_FindClubMemberByName(sender) ~= nil) then
+				if (LFGInvitePopup:IsShown()) then
+					LFGInvitePopupAcceptButton:Click()
+				end
+			end
+		end
+	else
+		-- send whisper back that you have deserter
+		CommunityFlare_SendMessage(sender, "Sorry, I currently have Deserter!")
+		if (LFGInvitePopup:IsShown()) then
+			LFGInvitePopupDeclineButton:Click()
+		end
+	end
+end
+
+-- process player entering world
+local function CommunityFlare_Event_Player_Entering_World(...)
+	local isInitialLogin, isReloadingUi = ...
+	if ((isInitialLogin) or (isReloadingUi)) then
+		-- display version
+		print("Community Flare: ", CF.Version)
+		TimerAfter(2, function()
+			-- get proper sas community id
+			CommFlareDB.SASID = CommunityFlare_FindClubIDByName(CF.CommName)
+		end)
+
+		-- reloading?
+		if (isReloadingUi) then
+			-- reloaded
+			CF.Reloaded = true
+
+			-- load previous session
+			CommunityFlare_LoadSession()
+
+			-- inside battleground?
+			CF.MatchStatus = 0
+			if (PvPIsBattleground() == true) then
+				-- reset joined / popped
+				CF.QueueJoined = false
+				CF.QueuePopped = false
+
+				-- match state is active?
+				if (PvPGetActiveMatchState() == Enum.PvPMatchState.Active) then
+					-- match is active state?
+					CF.MatchStatus = 1
+					if (PvPGetActiveMatchDuration() > 0) then
+						-- match started
+						CF.MatchStatus = 2
+					end
+				end
+			end
+		end
+	end
+end
+
+-- process player login
+local function CommunityFlare_Event_Player_Login()
+	-- event hooks not enabled yet?
+	if (CF.EventHandlerLoaded == false) then
+		-- process queue stuff
+		CommunityFlare_ProcessQueues()
+		CF.EventHandlerLoaded = true
+	end
+end
+
+-- process player logout
+local function CommunityFlare_Event_Player_Logout()
+	-- save session variables
+	CommunityFlare_SaveSession()
+
+	-- update global settings
+	_G.CommFlareDB = CommFlareDB
+end
+
 -- process pvp match active
 local function CommunityFlare_Event_PVP_Match_Active()
 	-- always reset ashran mages
@@ -1851,7 +1972,9 @@ local function CommunityFlare_Event_PVP_Match_Active()
 end
 
 -- process pvp match complete
-local function CommunityFlare_Event_PVP_Match_Complete(winner, duration)
+local function CommunityFlare_Event_PVP_Match_Complete(...)
+	local winner, duration = ...
+
 	-- update battleground status
 	CF.MatchStatus = 3
 	CommunityFlare_Update_Battleground_Status()
@@ -1865,7 +1988,9 @@ local function CommunityFlare_Event_PVP_Match_Inactive()
 end
 
 -- process ready check
-local function CommunityFlare_Event_Ready_Check(sender)
+local function CommunityFlare_Event_Ready_Check(...)
+	local sender, timeleft = ...
+
 	-- does the player have the mercenary buff?
 	CommunityFlare_CheckForAura("player", "HELPFUL", "Mercenary Contract")
 	if (CF.HasAura == true) then
@@ -1916,7 +2041,9 @@ local function CommunityFlare_Event_Ready_Check(sender)
 end
 
 -- process social queue update
-local function CommunityFlare_Event_Social_Queue_Update(groupGUID, numAddedItems)
+local function CommunityFlare_Event_Social_Queue_Update(...)
+	local groupGUID, numAddedItems = ...
+
 	-- nothing new?
 	if (not groupGUID or (numAddedItems == 0)) then
 		-- finished
@@ -1956,8 +2083,11 @@ local function CommunityFlare_Event_Social_Queue_Update(groupGUID, numAddedItems
 end
 
 -- process ui info message
-local function CommunityFlare_Event_UI_Info_Message(type, text)
+local function CommunityFlare_Event_UI_Info_Message(...)
+	local type, text = ...
+
 	-- someone has deserter?
+	text = strlower(text)
 	if (text:find("deserter")) then
 		print("Someone has Deserter debuff!")
 	end
@@ -1966,116 +2096,45 @@ end
 -- process all hooked events
 local function CommunityFlare_EventHandler(self, event, ...)
 	if (event == "ADDON_LOADED") then
-		local addon = ...
-		if (addon == addonName) then
-			-- initialize settings
-			CommFlareDB = _G.CommFlareDB or {}
-			for _,v in ipairs(defaultOptions) do
-				if (not CommFlareDB[v.key]) then
-					CommFlareDB[v.key] = v.value
-				elseif (type(CommFlareDB[v.key]) ~= v.type) then
-					CommFlareDB[v.key] = v.value
-				end
-			end
-		end
+		CommunityFlare_Event_Addon_Loaded(...)
 	elseif (event == "CHAT_MSG_BN_WHISPER") then
-		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
-		CommunityFlare_Event_BattleNet_Whisper(bnSenderID, strlower(text))
+		CommunityFlare_Event_Chat_BattleNet_Whisper(...)
 	elseif ((event == "CHAT_MSG_PARTY") or (event == "CHAT_MSG_PARTY_LEADER")) then
-		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
-		CommunityFlare_Event_Message_Party(sender, strlower(text))
+		CommunityFlare_Event_Chat_Message_Party(...)
 	elseif (event == "CHAT_MSG_SYSTEM") then
-		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
-		CommunityFlare_Event_Message_System(sender, strlower(text))
+		CommunityFlare_Event_Chat_Message_System(...)
 	elseif (event == "CHAT_MSG_WHISPER") then
-		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
-		CommunityFlare_Event_Message_Whisper(sender, strlower(text))
+		CommunityFlare_Event_Chat_Message_Whisper(...)
 	elseif (event == "CHAT_MSG_MONSTER_YELL") then
-		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
-		CommunityFlare_Event_Message_Monster_Yell(sender, strlower(text))
+		CommunityFlare_Event_Chat_Message_Monster_Yell(...)
 	elseif (event == "CLUB_MEMBER_ADDED") then
-		local clubId,memberId = ...
-		CommunityFlare_Event_Club_Member_Added(clubId, memberId)
+		CommunityFlare_Event_Club_Member_Added(...)
 	elseif (event == "CLUB_MEMBER_REMOVED") then
-		local clubId,memberId = ...
-		CommunityFlare_Event_Club_Member_Removed(clubId, memberId)
+		CommunityFlare_Event_Club_Member_Removed(...)
 	elseif (event == "GROUP_INVITE_CONFIRMATION") then
-		local text = StaticPopup1Text["text_arg1"]
-		CommunityFlare_Event_Group_Invite_Confirmation(text)
+		CommunityFlare_Event_Group_Invite_Confirmation()
 	elseif (event == "NOTIFY_PVP_AFK_RESULT") then
-		local offender, numBlackMarksOnOffender, numPlayersIHaveReported = ...
-		CommunityFlare_Event_Notify_PVP_AFK_Result(offender, numBlackMarksOnOffender, numPlayersIHaveReported)
+		CommunityFlare_Event_Notify_PVP_AFK_Result(...)
 	elseif (event == "PARTY_INVITE_REQUEST") then
-		local sender,_,_,_,_,_,guid,questSessionActive = ...
-		CommunityFlare_Event_PartyInvite_Request(sender)
+		CommunityFlare_Event_PartyInvite_Request(...)
 	elseif (event == "PLAYER_ENTERING_WORLD") then
-		local isInitialLogin, isReloadingUi = ...
-		if ((isInitialLogin) or (isReloadingUi)) then
-			-- display version
-			print("Community Flare: ", CF.Version)
-			TimerAfter(2, function()
-				-- get proper sas community id
-				CommFlareDB.SASID = CommunityFlare_FindClubIDByName(CF.CommName)
-			end)
-
-			-- reloading?
-			if (isReloadingUi) then
-				-- reloaded
-				CF.Reloaded = true
-
-				-- load previous session
-				CommunityFlare_LoadSession()
-
-				-- inside battleground?
-				CF.MatchStatus = 0
-				if (PvPIsBattleground() == true) then
-					-- reset joined / popped
-					CF.QueueJoined = false
-					CF.QueuePopped = false
-
-					-- match state is active?
-					if (PvPGetActiveMatchState() == Enum.PvPMatchState.Active) then
-						-- match is active state?
-						CF.MatchStatus = 1
-						if (PvPGetActiveMatchDuration() > 0) then
-							-- match started
-							CF.MatchStatus = 2
-						end
-					end
-				end
-			end
-		end
+		CommunityFlare_Event_Player_Entering_World(...)
 	elseif (event == "PLAYER_LOGIN") then
-		-- event hooks not enabled yet?
-		if (CF.EventHandlerLoaded == false) then
-			-- process queue stuff
-			CommunityFlare_ProcessQueues()
-			CF.EventHandlerLoaded = true
-		end
+		CommunityFlare_Event_Player_Login()
 	elseif (event == "PLAYER_LOGOUT") then
-		-- save session variables
-		CommunityFlare_SaveSession()
-
-		-- update global settings
-		_G.CommFlareDB = CommFlareDB
+		CommunityFlare_Event_Player_Logout()
 	elseif (event == "PVP_MATCH_ACTIVE") then
-		-- has no arguments?
 		CommunityFlare_Event_PVP_Match_Active()
 	elseif (event == "PVP_MATCH_COMPLETE") then
-		local winner,duration = ...
-		CommunityFlare_Event_PVP_Match_Complete(winner, duration)
+		CommunityFlare_Event_PVP_Match_Complete(...)
 	elseif (event == "PVP_MATCH_INACTIVE") then
-		-- has no arguments?
 		CommunityFlare_Event_PVP_Match_Inactive()
 	elseif (event == "READY_CHECK") then
-		local sender, timeleft = ...
-		CommunityFlare_Event_Ready_Check(sender)
+		CommunityFlare_Event_Ready_Check(...)
 	elseif (event == "SOCIAL_QUEUE_UPDATE") then
-		local groupGUID,numAddedItems = ...
-		CommunityFlare_Event_Social_Queue_Update(groupGUID, numAddedItems)
+		CommunityFlare_Event_Social_Queue_Update(...)
 	elseif (event == "UI_INFO_MESSAGE") then
-		local type,text = ...
-		CommunityFlare_Event_UI_Info_Message(type, strlower(text))
+		CommunityFlare_Event_UI_Info_Message(...)
 	else
 		-- unhandled message?
 		print(strformat("Community Flare: Unhandled Event = %s", event))
