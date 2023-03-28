@@ -1,11 +1,10 @@
 SLASH_COMF1 = "/comf"
 
 -- current stuff
-local CommFlareDB = {}
-local cfVersion = "v0.12"
+local CommFlareDB = _G.CommFlareDB or {}
+local cfVersion = "v0.13"
 
 -- localize stuff
-local _G = _G;
 local BNGetFriendIndex                    = _G.BNGetFriendIndex
 local BNInviteFriend                      = _G.BNInviteFriend
 local BNSendWhisper                       = _G.BNSendWhisper
@@ -59,17 +58,6 @@ local pairs                               = _G.pairs
 local print                               = _G.print
 local strfind, strformat, strlower = string.find, string.format, string.lower
 
--- default options
-local CommFlare_DefaultOptions = {
-	["SASID"] = 0,
-	["alwaysAutoQueue"] = false,
-	["bnetAutoInvite"] = false,
-	["communityAutoInvite"] = true,
-	["communityAutoPromoteLeader"] = true,
-	["communityAutoQueue"] = true,
-	["communityReporter"] = true,
-}
-
 -- global variables
 local count = 0
 local isHealer = 0
@@ -106,67 +94,69 @@ f.sasLeaders = {
 	"Krolak-Proudmoore",
 }
 
+-- default options
+f.defaults = {
+	["SASID"] = 372791201,
+	["alwaysAutoQueue"] = false,
+	["bnetAutoInvite"] = false,
+	["communityAutoInvite"] = true,
+	["communityAutoPromoteLeader"] = true,
+	["communityAutoQueue"] = true,
+	["communityReporter"] = true,
+}
+
+-- add checkbox to settings panel
+local function CommunityFlare_Settings_CBox(parent, field, position, text)
+	-- create the box
+	local cb = CreateFrame("CheckButton", nil, parent, "ChatConfigCheckButtonTemplate")
+	cb:SetPoint("TOPLEFT", 20, position)
+	cb.Text:SetText(text)
+
+	-- handle OnShow
+	cb:SetScript("OnShow", function(self)
+		if (CommFlareDB[field] == true) then
+			self:SetChecked(true)
+		else
+			self:SetChecked(false)
+		end
+	end)
+
+	-- handle OnClick
+	cb:SetScript("OnClick", function()
+		if (CommFlareDB[field] == true) then
+			CommFlareDB[field] = false
+		else
+			CommFlareDB[field] = true
+		end
+	end)
+end
+
 -- setup addon options
 function f:SetupOptions()
-	self.panel = CreateFrame("Frame")
-	self.panel.name = "Community Flare"
-
+	-- header
 	local position = -20
-	local cb = CreateFrame("CheckButton", nil, self.panel, "InterfaceOptionsCheckButtonTemplate")
-	cb:SetPoint("TOPLEFT", 20, position)
-	cb.Text:SetText("Always automatically queue")
-	cb.SetValue = function(_, value)
-		self.db.alwaysAutoQueue = (value == "1")
-	end
-	cb:SetChecked(self.db.alwaysAutoQueue)
+	local text = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+	text:SetPoint("TOPLEFT", 20, position)
+	text:SetText("General")
+	position = position - 25
+
+	-- checkbox settings
+	CommunityFlare_Settings_CBox(f, "alwaysAutoQueue", position, "Always automatically queue")
+	position = position - 30
+	CommunityFlare_Settings_CBox(f, "communityAutoQueue", position, "Auto queue (If leader is SAS)")
+	position = position - 30
+	CommunityFlare_Settings_CBox(f, "communityAutoInvite", position, "Auto invite SAS (If you are leader and have room)")
+	position = position - 30
+	CommunityFlare_Settings_CBox(f, "bnetAutoInvite", position, "Auto invite BNET (If you are leader and have room)")
+	position = position - 30
+	CommunityFlare_Settings_CBox(f, "communityAutoPromoteLeader", position, "Auto promote leaders in SAS (If you are raid leader)")
+	position = position - 30
+	CommunityFlare_Settings_CBox(f, "communityReporter", position, "Report queues to SAS")
 	position = position - 30
 
-	cb = CreateFrame("CheckButton", nil, self.panel, "InterfaceOptionsCheckButtonTemplate")
-	cb:SetPoint("TOPLEFT", 20, position)
-	cb.Text:SetText("Auto queue (If leader is SAS)")
-	cb.SetValue = function(_, value)
-		self.db.communityAutoQueue = (value == "1")
-	end
-	cb:SetChecked(self.db.communityAutoQueue)
-	position = position - 30
-
-	cb = CreateFrame("CheckButton", nil, self.panel, "InterfaceOptionsCheckButtonTemplate")
-	cb:SetPoint("TOPLEFT", 20, position)
-	cb.Text:SetText("Auto invite SAS (If you are leader and have room)")
-	cb.SetValue = function(_, value)
-		self.db.communityAutoInvite = (value == "1")
-	end
-	cb:SetChecked(self.db.communityAutoInvite)
-	position = position - 30
-
-	cb = CreateFrame("CheckButton", nil, self.panel, "InterfaceOptionsCheckButtonTemplate")
-	cb:SetPoint("TOPLEFT", 20, position)
-	cb.Text:SetText("Auto invite BNET (If you are leader and have room)")
-	cb.SetValue = function(_, value)
-		self.db.bnetAutoInvite = (value == "1")
-	end
-	cb:SetChecked(self.db.bnetAutoInvite)
-	position = position - 30
-
-	cb = CreateFrame("CheckButton", nil, self.panel, "InterfaceOptionsCheckButtonTemplate")
-	cb:SetPoint("TOPLEFT", 20, position)
-	cb.Text:SetText("Auto promote leaders in SAS (If you are raid leader)")
-	cb.SetValue = function(_, value)
-		self.db.communityAutoPromoteLeader = (value == "1")
-	end
-	cb:SetChecked(self.db.communityAutoPromoteLeader)
-	position = position - 30
-
-	cb = CreateFrame("CheckButton", nil, self.panel, "InterfaceOptionsCheckButtonTemplate")
-	cb:SetPoint("TOPLEFT", 20, position)
-	cb.Text:SetText("Report queues to SAS")
-	cb.SetValue = function(_, value)
-		self.db.communityReporter = (value == "1")
-	end
-	cb:SetChecked(self.db.communityReporter)
-	position = position - 30
-
-	InterfaceOptions_AddCategory(self.panel)
+	-- register addon category in settings panel
+	local category = Settings.RegisterCanvasLayoutCategory(f, "Community Flare")
+	Settings.RegisterAddOnCategory(category)
 end
 
 -- register all necessary events
@@ -892,13 +882,13 @@ local function CommunityFlare_EventHandler(self, event, ...)
 		if (addOnName == "Community_Flare") then
 			CommFlareDB = _G.CommFlareDB or {}
 			if (CommFlareDB) then
-				for opt,val in pairs(CommFlare_DefaultOptions) do
+				for opt,val in pairs(f.defaults) do
 					if (CommFlareDB[opt] == nil) then
 						CommFlareDB[opt] = val
 					end
 				end
 			else
-				CommFlareDB = CommFlare_DefaultOptions
+				CommFlareDB = f.defaults
 			end
 			self.db = CommFlareDB
 			self:SetupOptions()
@@ -1207,7 +1197,7 @@ SlashCmdList["COMF"] = function(cmd)
 			print("Report: Not quite ready for the masses.")
 		end
 	elseif (cmd == "reset all") then
-		CommFlareDB = CommFlare_DefaultOptions
+		CommFlareDB = f.defaults
 	elseif (cmd == "sasid") then
 		-- get proper sas community id
 		CommFlareDB["SASID"] = CommunityFlare_FindClubIDByName(cfCommunityName)

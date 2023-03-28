@@ -1,3 +1,6 @@
+v0.13 features:
+-Fixed settings so that they save and load properly once again. (Stupid SettingsPanel API update!)
+
 v0.12 features:
 -Does not auto queue or auto confirm ready check if you are you in a Raid Group. (i.e. Rated Battlegrounds groups)
 -Added new !pl whisper command to pass lead. (Only works if the user has Raid Leader and you are an SAS Leader!)
