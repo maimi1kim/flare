@@ -4,6 +4,14 @@ local CfEvt = CreateFrame("FRAME")
 CfEvt:RegisterEvent("PLAYER_LOGIN")
 CfEvt:RegisterEvent("PLAYER_LOGOUT")
 
+function comf_split(s, delimiter)
+    result = {};
+    for match in (s..delimiter):gmatch("(.-)"..delimiter) do
+        table.insert(result, match);
+    end
+    return result;
+end
+
 function comf_get_rank(playerName)
 	for i = 1, MAX_RAID_MEMBERS do
 		local name, rank = GetRaidRosterInfo(i)
@@ -55,14 +63,12 @@ end
 function comf_find_member_by_name(playerName, realmName)
 	local fullName
 	local clubId = comf_find_clubid("Savage Alliance Slayers")
-	local playerList = nil
 	local c = C_Club.GetClubMembers(clubId)
 	if realmName == GetRealmName() then
 		fullName = playerName
 	else
 		fullName = playerName .. "-" .. realmName
 	end
-	print("full: ", fullName)
 	for i,v in ipairs(c) do
 		local memberInfo = C_Club.GetMemberInfo(clubId, v);
 		if memberInfo ~= nil then
@@ -78,12 +84,8 @@ SLASH_COMF1 = "/comf"
 SlashCmdList["COMF"] = function(msg, editBox)
 	-- count some stuff
 	local numScores = GetNumBattlefieldScores()
-	local numHorde = 0
-	local numHordeHealers = 0
-	local numHordeTanks = 0
-	local numAlliance = 0
-	local numAllianceHealers = 0
-	local numAllianceTanks = 0
+	local numHorde, numHordeHealers, numHordeTanks = 0
+	local numAlliance, numAllianceHealers, numAllianceTanks = 0
 	if numScores ~= 0 then
 		for i = 1, numScores do
 			local name,_,_,_,_,faction,race,_,class,_,_,_,_,_,_,spec = GetBattlefieldScore(i)
@@ -116,12 +118,11 @@ SlashCmdList["COMF"] = function(msg, editBox)
 		print(string.format("Alliance: Healers = %d, Tanks = %d", numAllianceHealers, numAllianceTanks))
 
 		-- find SAS members
-		local count = 0
-		local clubId = 0
+		local playerList = nil
+		local count, clubId = 0
 		local playerName = UnitName("player")
 		local rank = comf_get_rank(playerName)
 		local clubId = comf_find_clubid("Savage Alliance Slayers")
-		local playerList = nil
 		local c = C_Club.GetClubMembers(clubId)
 		for i,v in ipairs(c) do
 			local memberInfo = C_Club.GetMemberInfo(clubId, v);
@@ -149,16 +150,29 @@ end
 
 function CommunityFlare_AutoAcceptQueues()
 	LFDRoleCheckPopupAcceptButton:SetScript("OnShow", function()
-		local leader = ""
-		local realm = GetRealmName()
-		for i = 1, GetNumSubgroupMembers() do 
-			if UnitIsGroupLeader("party" .. i) then 
-				leader, realm = UnitName("party" .. i)
-				if not realm then
-					realm = GetRealmName()
+		local leader, realm
+		local playerName = UnitName("player")
+		local isInRaid = IsInRaid(playerName)
+		if isInRaid == true then
+			for i = 1, MAX_RAID_MEMBERS do
+				local name, rank = GetRaidRosterInfo(i)
+				if rank == 2 then
+					local split_string = comf_split(name, "-")
+					leader = split_string[1]
+					realm = split_string[2]
+					break
 				end
-				break
 			end
+		else
+			for i = 1, GetNumSubgroupMembers() do 
+				if UnitIsGroupLeader("party" .. i) then 
+					leader, realm = UnitName("party" .. i)
+					break
+				end
+			end
+		end
+		if not realm then
+			realm = GetRealmName()
 		end
 		local fullName = comf_find_member_by_name(leader, realm)
 		if fullName ~= nil then
