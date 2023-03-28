@@ -1,4 +1,4 @@
-v0.11 (rc2) features:
+v0.11 features:
 -Interface -> Addons -> Community Flare = All new settings you can enable
 -- Always automatically queue = This will automatically accept queue requests from anybody when enabled. It will also auto accept /readychecks always too! (Good for SAS Alts Community Members.)
 -- Auto queue (If leader is SAS) = This is the standard feature that will auto queue if your group leader is in SAS. It will now auto accept /readycheck's if the group leader is SAS too!
@@ -20,3 +20,4 @@ v0.11 (rc2) features:
 -Added Report to SAS feature for /readycheck confirmed.
 -Detects Vengenace Demon Hunters as Tanks properly now.
 -Can upgrade Honor Gear after a Popup Box issued.
+-Disabled popup box for characters not in SAS.

@@ -1,11 +1,11 @@
 SLASH_COMF1 = "/comf"
 
--- current version
-local cfVersion = "v0.11 (rc2)"
+-- current stuff
+local CommFlareDB = {}
+local cfVersion = "v0.11"
 
 -- localize stuff
 local _G = _G;
-local CommFlareDB                         = _G.CommFlareDB or {}
 local BNGetFriendIndex                    = _G.BNGetFriendIndex
 local BNInviteFriend                      = _G.BNInviteFriend
 local BNSendWhisper                       = _G.BNSendWhisper
@@ -24,6 +24,7 @@ local GetRealmName                        = _G.GetRealmName
 local InterfaceOptions_AddCategory        = _G.InterfaceOptions_AddCategory
 local IsInGroup                           = _G.IsInGroup
 local IsInRaid                            = _G.IsInRaid
+local PromoteToAssistant                  = _G.PromoteToAssistant
 local PromoteToLeader                     = _G.PromoteToLeader
 local SlashCmdList                        = _G.SlashCmdList
 local SendChatMessage                     = _G.SendChatMessage
@@ -60,7 +61,7 @@ local strfind, strformat, strlower = string.find, string.format, string.lower
 
 -- default options
 local CommFlare_DefaultOptions = {
-	["SASID"] = 372791201,
+	["SASID"] = 0,
 	["bnetAutoInvite"] = false,
 	["alwaysAutoQueue"] = false,
 	["communityAutoInvite"] = true,
@@ -170,9 +171,7 @@ end
 
 -- register all necessary events
 f:RegisterEvent("ADDON_LOADED")
-f:RegisterEvent("CHAT_MSG_ADDON")
 f:RegisterEvent("CHAT_MSG_BN_WHISPER")
-f:RegisterEvent("CHAT_MSG_COMMUNITIES_CHANNEL")
 f:RegisterEvent("CHAT_MSG_PARTY")
 f:RegisterEvent("CHAT_MSG_PARTY_LEADER")
 f:RegisterEvent("CHAT_MSG_SYSTEM")
@@ -186,13 +185,30 @@ f:RegisterEvent("READY_CHECK")
 f:RegisterEvent("SOCIAL_QUEUE_UPDATE")
 f:RegisterEvent("UI_INFO_MESSAGE")
 
+-- find community id by name
+local function CommunityFlare_FindClubIDByName(name)
+	-- has SASID already?
+	if (CommFlareDB["SASID"] > 0) then
+		return CommFlareDB["SASID"]
+	end
+
+	-- process all subscribed communities
+	local clubs = ClubGetSubscribedClubs()
+	for _,v in ipairs(clubs) do
+		if (v.name == name) then
+			return v.clubId
+		end
+	end
+	return 0
+end
+
 -- popoup box setup
 StaticPopupDialogs["CommunityFlare_Popup_Dialog"] = {
 	text = "Send: %s?",
 	button1 = "Send",
 	button2 = "No",
 	OnAccept = function(self, message)
-		if (CommFlareDB["SASID"]) then
+		if (CommFlareDB["SASID"] > 0) then
 			local channelId = "Community:" .. CommFlareDB["SASID"] .. ":1"
 			local id, name = GetChannelName(channelId)
 			if ((id > 0) and (name ~= nil)) then
@@ -207,7 +223,7 @@ StaticPopupDialogs["CommunityFlare_Popup_Dialog"] = {
 
 -- popup box to send community message
 local function CommunityFlare_PopupBox(message)
-	if (CommFlareDB["SASID"]) then
+	if (CommunityFlare_FindClubIDByName(cfCommunityName) > 0) then
 		-- popup box setup
 		local popup = StaticPopupDialogs["CommunityFlare_Popup_Dialog"]
 
@@ -227,6 +243,10 @@ end
 local function CommunityFlare_GetPlayerName(type)
 	local name,realm = UnitFullName("player")
 	if (type == "full") then
+		-- no realm name?
+		if (not realm or (realm == "")) then
+			realm = GetRealmName()
+		end
 		return strformat("%s-%s", name, realm)
 	end
 	return name
@@ -286,7 +306,7 @@ end
 
 -- find community member by name
 local function CommunityFlare_FindClubMemberByName(player)
-	if (CommFlareDB["SASID"]) then
+	if (CommunityFlare_FindClubIDByName(cfCommunityName) > 0) then
 		-- use short name for same realm as you
 		local name,realm = strsplit("-", player, 2)
 		if (realm == GetRealmName()) then
@@ -307,21 +327,9 @@ local function CommunityFlare_FindClubMemberByName(player)
 	return nil
 end
 
--- find community id by name
-local function CommunityFlare_FindClubIDByName(name)
-	-- process all subscribed communities
-	local clubs = ClubGetSubscribedClubs()
-	for _,v in ipairs(clubs) do
-		if (v.name == name) then
-			return v.clubId
-		end
-	end
-	return nil
-end
-
 -- find community member by guid
 local function CommunityFlare_FindClubMemberByGUID(guid)
-	if (CommFlareDB["SASID"]) then
+	if (CommunityFlare_FindClubIDByName(cfCommunityName) > 0) then
 		local _,_,_,_,_,name,realm = GetPlayerInfoByGUID(guid)
 
 		-- use short name for same realm as you
@@ -351,7 +359,7 @@ end
 
 -- send community message
 local function CommunityFlare_SendCommunityMessage(text)
-	if (CommFlareDB["SASID"]) then
+	if (CommunityFlare_FindClubIDByName(cfCommunityName) > 0) then
 		local channelId = "Community:" .. CommFlareDB["SASID"] .. ":1"
 		local id, name = GetChannelName(channelId)
 		if ((id > 0) and (name ~= nil)) then
@@ -621,12 +629,6 @@ end
 
 -- get player raid rank
 local function CommunityFlare_GetRaidRank(player)
-	-- use short name for same realm as you
-	local name,realm = strsplit("-", player, 2)
-	if (realm == GetRealmName()) then
-		player = name
-	end
-
 	-- process all raid members
 	for i=1, MAX_RAID_MEMBERS do
 		local name, rank = GetRaidRosterInfo(i)
@@ -698,8 +700,9 @@ local function CommunityFlare_Battleground_Setup(type)
 	-- find SAS members
 	count = 0
 	playerList = nil
-	local rank = CommunityFlare_GetRaidRank(CommunityFlare_GetPlayerName("full"))
-	if (CommFlareDB["SASID"]) then
+	local player = UnitName("player")
+	local rank = CommunityFlare_GetRaidRank(player)
+	if (CommunityFlare_FindClubIDByName(cfCommunityName) > 0) then
 		local members = ClubGetClubMembers(CommFlareDB["SASID"])
 		for _,v in ipairs(members) do
 			local mi = ClubGetMemberInfo(CommFlareDB["SASID"], v);
@@ -813,15 +816,69 @@ local function CommunityFlare_ProcessQueuePops()
 	end
 end
 
+-- process addon messages
+local function CommunityFlare_ProcessAddonMessage(sender, text)
+	-- get queue time?
+	if (text == "GetQueueTime") then
+		-- get current time in queue
+		local mseconds = 0
+		for i=1, GetMaxBattlefieldID() do
+			local status,mapName = GetBattlefieldStatus(i)
+			if (mapName == "Random Epic Battleground") then
+				mseconds = GetBattlefieldTimeWaited(i)
+				if (mseconds > 0) then
+					break
+				end
+			end
+		end
+
+		-- send current time in queue
+		local leader = CommunityFlare_GetPartyLeader()
+		ChatInfoSendAddonMessage("CommFlare", strformat("CurQueueTime:%s:%s", mseconds, leader), "WHISPER", sender)
+		return true
+	-- get version?
+	elseif (text == "GetVersion") then
+		-- send current version
+		ChatInfoSendAddonMessage("CommFlare", strformat("CurVersion:%s", cfVersion), "WHISPER", sender)
+		return true
+	-- read response from current queue time
+	elseif (strfind(text, "CurQueueTime:")) then
+		-- setup arguments
+		local command,mseconds,leader = strsplit(":", text, 3)
+		if (not leader) then
+			leader = sender
+		end
+
+		-- check milliseconds
+		if (mseconds == "0") then
+			-- not currently in queue
+			print(strformat("%s is not currently in queue.", leader))
+		else
+			-- calculate minutes / seconds
+			local seconds = math.floor(mseconds / 1000)
+			local minutes = math.floor(seconds / 60)
+			print(strformat("%s has been queued for %d minutes and %d seconds.", leader, minutes, seconds))
+		end
+		return true
+	-- read response from current version
+	elseif (strfind(text, "CurVersion:")) then
+		-- display sender version
+		local command,version = strsplit(":", text, 2)
+		print(strformat("%s has version %s.", sender, version))
+		return true
+	end
+	return false
+end
+
 -- process all hooked events
 local function CommunityFlare_EventHandler(self, event, ...)
 	if (event == "ADDON_LOADED") then
 		local addOnName = ...
 		if (addOnName == "Community_Flare") then
-			DevTools_Dump(CommFlareDB)
+			CommFlareDB = _G.CommFlareDB or {}
 			if (CommFlareDB) then
 				for opt,val in pairs(CommFlare_DefaultOptions) do
-					if (not CommFlareDB[opt]) then
+					if (CommFlareDB[opt] == nil) then
 						CommFlareDB[opt] = val
 					end
 				end
@@ -830,48 +887,6 @@ local function CommunityFlare_EventHandler(self, event, ...)
 			end
 			self.db = CommFlareDB
 			self:SetupOptions()
-		end
-	elseif (event == "CHAT_MSG_ADDON") then
-		local prefix,text,channel,sender,target,zoneChannelID,localID,name,instanceID = ...
-		if (prefix == "CommFlare") then
-			-- skip messages from yourself
-			if (CommunityFlare_GetPlayerName("full") ~= sender) then
-				if (text == "GetQueueTime") then
-					-- get current time in queue
-					local mseconds = 0
-					for i=1, GetMaxBattlefieldID() do
-						local status,mapName = GetBattlefieldStatus(i)
-						if (mapName == "Random Epic Battleground") then
-							mseconds = GetBattlefieldTimeWaited(i)
-							if (mseconds > 0) then
-								break
-							end
-						end
-					end
-
-					-- send current time in queue
-					local leader = CommunityFlare_GetPartyLeader()
-					ChatInfoSendAddonMessage("CommFlare", strformat("CurQueueTime:%s:%s", mseconds, leader), "WHISPER", sender)
-				elseif (strfind(text, "CurQueueTime:")) then
-					local command,mseconds,leader = strsplit(":", text, 3)
-					if (not leader) then
-						leader = sender
-					end
-
-					-- check milliseconds
-					if (mseconds == "0") then
-						-- not currently in queue
-						print(strformat("%s is not currently in queue.", leader))
-					else
-						-- calculate minutes / seconds
-						local seconds = math.floor(mseconds / 1000)
-						local minutes = math.floor(seconds / 60)
-						print(strformat("%s has been queued for %d minutes and %d seconds.", leader, minutes, seconds))
-					end
-				else
-					print(...)
-				end
-			end
 		end
 	elseif (event == "CHAT_MSG_BN_WHISPER") then
 		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
@@ -908,11 +923,6 @@ local function CommunityFlare_EventHandler(self, event, ...)
 				end
 			end
 		end
-	elseif (event == "CHAT_MSG_COMMUNITIES_CHANNEL") then
-		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
-		if (text:find("!status")) then
-			print("!status Found?!? How?!?")
-		end
 	elseif ((event == "CHAT_MSG_PARTY") or (event == "CHAT_MSG_PARTY_LEADER")) then
 		local text,sender,_,_,_,_,_,_,_,_,_,guid,bnSenderID = ...
 		-- skip messages from yourself
@@ -937,28 +947,27 @@ local function CommunityFlare_EventHandler(self, event, ...)
 				end
 			end
 		elseif (text:find("has invited you to join a group")) then
+			-- invited to group
 			cfGroupInvited = true
+			TimerAfter(2, function()
+				-- resets if not in queue
+				cfGroupInvited = false
+			end)
 		elseif (text:find("has joined the instance group")) then
 			-- community auto promote leader enabled?
 			if (CommFlareDB["communityAutoPromoteLeader"] == true) then
-				-- check if already leader first
-				local alreadyLeader = false
-				local leader = CommunityFlare_GetPlayerName("full")
-				for _,v in ipairs(f.sasLeaders) do
-					if (v == leader) then
-						alreadyLeader = true
-					end
-				end
-
-				-- not already leader?
-				if (alreadyLeader == false) then
-					local rank = CommunityFlare_GetRaidRank(CommunityFlare_GetPlayerName("full"))
-					if (rank == 2) then
-						-- process all sas leaders
-						for _,v in ipairs(f.sasLeaders) do
-							if (CommunityFlare_Battleground_PromoteToLeader(v) == true) then
-								break
-							end
+				-- do you have lead?
+				local player = UnitName("player")
+				local rank = CommunityFlare_GetRaidRank(player)
+				if (rank == 2) then
+					-- process all sas leaders
+					player = CommunityFlare_GetPlayerName("full")
+					for _,v in ipairs(f.sasLeaders) do
+						if (player == v) then
+							break
+						end
+						if (CommunityFlare_Battleground_PromoteToLeader(v) == true) then
+							break
 						end
 					end
 				end
@@ -1069,7 +1078,11 @@ local function CommunityFlare_EventHandler(self, event, ...)
 	elseif (event == "PLAYER_ENTERING_WORLD") then
 		local isInitialLogin, isReloadingUi = ...
 		if ((isInitialLogin) or (isReloadingUi)) then
-			ChatInfoRegisterAddonMessagePrefix("CommFlare")
+			print("Community Flare: ", cfVersion)
+			TimerAfter(2, function()
+				-- get proper sas community id
+				CommFlareDB["SASID"] = CommunityFlare_FindClubIDByName(cfCommunityName)
+			end)
 		end
 	elseif (event == "PLAYER_LOGIN") then
 		-- event hooks not enabled yet?
@@ -1118,7 +1131,13 @@ local function CommunityFlare_EventHandler(self, event, ...)
 		end
 	elseif (event == "SOCIAL_QUEUE_UPDATE") then
 		-- TODO: find when queues get sync'd / joined / added
-		--print(...)
+		local guid,numAdded = ...
+		local canJoin,numQueues,_,_,_,_,_,leaderGUID = SocialQueueGetGroupInfo(guid)
+		local queues = SocialQueueGetGroupQueues(guid)
+		local members = SocialQueueGetGroupMembers(guid)
+		--print(strformat("GroupInfo: %d, %d, %s", canJoin, numQueues, leaderGUID))
+		--DevTools_Dump(queues)
+		--DevTools_Dump(members)
 	elseif (event == "UI_INFO_MESSAGE") then
 		local number, text = ...
 		text = strlower(text)
@@ -1157,6 +1176,10 @@ SlashCmdList["COMF"] = function(cmd)
 		end
 	elseif (cmd == "reset all") then
 		CommFlareDB = CommFlare_DefaultOptions
+	elseif (cmd == "sasid") then
+		-- get proper sas community id
+		CommFlareDB["SASID"] = CommunityFlare_FindClubIDByName(cfCommunityName)
+		print("SASID: ", CommFlareDB["SASID"])
 	elseif (cmd == "status") then
 		CommunityFlare_GetStatus()
 	elseif (cmd == "usage") then
