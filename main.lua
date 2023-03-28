@@ -39,8 +39,10 @@ end
 function comf_find_clubid(communityName)
   local clubs = C_Club.GetSubscribedClubs()
   for i,v in ipairs(clubs) do
-    if (v.name == communityName) then
-      return v
+    if (v.clubType == 1) then
+      if (v.name == communityName) then
+        return v
+      end
     end
   end
   return nil
@@ -83,7 +85,7 @@ SlashCmdList["COMF"] = function(msg, editBox)
       end
     end
   end
-  print(format("Horde: Healers = %d, Tanks = %d", numHordeHealers, numHordeTanks))
+  print(string.format("Horde: Healers = %d, Tanks = %d", numHordeHealers, numHordeTanks))
   print(string.format("Alliance: Healers = %d, Tanks = %d", numAllianceHealers, numAllianceTanks))
 
   -- find SAS members
