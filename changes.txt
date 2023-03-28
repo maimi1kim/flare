@@ -1,3 +1,8 @@
+v0.20 features:
+-!status now sends a reply to the sender when the Battleground has finished.
+-Ready check and Joined Queue messages will add Whisper INV for auto invite if option is enabed.
+-Auto queue only works for Random Epic Battlegrounds now, not Random Battlegrounds/2v2/3v3 Arenas anymore.
+
 v0.19 features:
 -Fixed some bugs with !status command introduced in v0.17 or v0.18.
 -Fixed bug with BattleNet whispers.

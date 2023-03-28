@@ -7,7 +7,8 @@ local CommFlareDB = {}
 local CF = {
 	-- strings
 	CommName = "Savage Alliance Slayers",
-	Version = "v0.19",
+	PlayerServerName = "",
+	Version = "v0.20",
 
 	-- booleans
 	AutoPromote = false,
@@ -51,13 +52,16 @@ local CF = {
 	Dropdowns = {},
 	Groups = {},
 	MapInfo = {},
+	MemberInfo = {},
 	PlayerCache = {},
 	POIInfo = {},
+	QueueData = {},
 	ScoreInfo = {},
 	SettingsInfo = {},
 	SocialGroups = {},
 	SocialMembers = {},
 	SocialQueues = {},
+	StatusCheck = {},
 
 	-- misc stuff
 	Alliance = { Count = 0, Healers = 0, Tanks = 0 },
@@ -70,11 +74,6 @@ local CF = {
 	IOC = {},
 	WG = {}
 }
-
--- global reusable variables
-local memberInfo
-local playerServerName
-local queueData
 
 -- initialize leaders
 local sasLeaders = {
@@ -126,6 +125,8 @@ local GetBattlefieldPortExpiration              = _G.GetBattlefieldPortExpiratio
 local GetBattlefieldStatus                      = _G.GetBattlefieldStatus
 local GetBattlefieldTimeWaited                  = _G.GetBattlefieldTimeWaited
 local GetChannelName                            = _G.GetChannelName
+local GetLFGRoleUpdate                          = _G.GetLFGRoleUpdate
+local GetLFGRoleUpdateBattlegroundInfo          = _G.GetLFGRoleUpdateBattlegroundInfo
 local GetMaxBattlefieldID                       = _G.GetMaxBattlefieldID
 local GetNumBattlefieldScores                   = _G.GetNumBattlefieldScores
 local GetNumGroupMembers                        = _G.GetNumGroupMembers
@@ -367,6 +368,7 @@ f:RegisterEvent("CHAT_MSG_MONSTER_YELL")
 f:RegisterEvent("CLUB_MEMBER_ADDED")
 f:RegisterEvent("CLUB_MEMBER_REMOVED")
 f:RegisterEvent("GROUP_INVITE_CONFIRMATION")
+f:RegisterEvent("LFG_ROLE_CHECK_SHOW")
 f:RegisterEvent("NOTIFY_PVP_AFK_RESULT")
 f:RegisterEvent("PARTY_INVITE_REQUEST")
 f:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -394,14 +396,14 @@ local function CommunityFlare_Update_PlayerCache(mi)
 	if ((mi ~= nil) and mi.guid) then
 		-- build proper name
 		if (strmatch(mi.name, "-")) then
-			playerServerName = mi.name
+			CF.PlayerServerName = mi.name
 		else
 			-- add realm name
-			playerServerName = strformat("%s-%s", mi.name, GetRealmName())
+			CF.PlayerServerName = strformat("%s-%s", mi.name, GetRealmName())
 		end
 
 		-- add to cache
-		CF.PlayerCache[mi.guid] = { memberId = mi.memberId, name = playerServerName, presence = mi.presence, role = mi.role }
+		CF.PlayerCache[mi.guid] = { memberId = mi.memberId, name = CF.PlayerServerName, presence = mi.presence, role = mi.role }
 	end
 end
 
@@ -412,8 +414,8 @@ local function CommunityFlare_Load_PlayerCache()
 	CF.ClubMembers = ClubGetClubMembers(CommFlareDB.SASID)
 	for _,v in ipairs(CF.ClubMembers) do
 		-- get club member info
-		memberInfo = ClubGetMemberInfo(CommFlareDB.SASID, v);
-		CommunityFlare_Update_PlayerCache(memberInfo)
+		CF.MemberInfo = ClubGetMemberInfo(CommFlareDB.SASID, v);
+		CommunityFlare_Update_PlayerCache(CF.MemberInfo)
 	end
 end
 
@@ -754,8 +756,8 @@ local function CommunityFlare_Find_Social_Queues(bPrint)
 			local canJoin,numQueues,_,_,_,_,_,leaderGUID = SocialQueueGetGroupInfo(CF.SocialGroups[i])
 			local name, realm = CommunityFlare_FindClubMemberByGUID(leaderGUID)
 			if (name ~= nil) then
-				queueData = CommunityFlare_FindSocialQueueByType("Random Epic Battleground", CF.SocialGroups[i], 1)
-				if (queueData ~= nil) then
+				CF.QueueData = CommunityFlare_FindSocialQueueByType("Random Epic Battleground", CF.SocialGroups[i], 1)
+				if (CF.QueueData ~= nil) then
 					-- save into table
 					CF.Groups[index] = {}
 					CF.Groups[index].guid = leaderGUID
@@ -1072,50 +1074,6 @@ local function CommunityFlare_Battleground_Setup(type)
 	print("Found: ", CF.Count)
 end
 
--- setup stuff to automatically accept queues
-local function CommunityFlare_AutoAcceptQueues_OnShow()
-	-- capable of auto queuing?
-	CF.AutoQueueable = false
-	if (not IsInRaid()) then
-		CF.AutoQueueable = true
-	else
-		-- larger than rated battleground count?
-		if (GetNumGroupMembers() > 10) then
-			CF.AutoQueueable = true
-		end
-	end
-
-	-- auto queueable?
-	CF.AutoQueue = false
-	if (CF.AutoQueueable == true) then
-		-- always auto queue?
-		if (CommFlareDB.alwaysAutoQueue == "true") then
-			CF.AutoQueue = true
-		-- community auto queue?
-		elseif (CommFlareDB.communityAutoQueue == "true") then
-			local player = CommunityFlare_FindClubMemberByName(CommunityFlare_GetPartyLeader())
-			if (player ~= nil) then
-				CF.AutoQueue = true
-			end
-		end
-	end
-
-	-- auto queue enabled?
-	if (CF.AutoQueue == true) then
-		CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
-		if (CF.HasAura == false) then
-			-- auto queue up
-			CF.QueueJoined = true
-			CF.QueuePopped = false
-			LFDRoleCheckPopupAcceptButton:Click()
-		else
-			-- have deserter / leave party
-			CommunityFlare_SendMessage(nil, "Sorry, I currently have Deserter! Leaving party to avoid interrupting the queue!")
-			PartyInfoLeaveParty()
-		end
-	end
-end
-
 -- securely hook pvp ready dialog display
 local function CommunityFlare_PVPReadyDialog_Display(self, index, displayName, isRated, queueType, gameType, role)
 	-- process random epic battlegrounds only
@@ -1173,10 +1131,9 @@ end
 -- process queue stuff
 local function CommunityFlare_ProcessQueues()
 	-- hook stuff
-	LFDRoleCheckPopupAcceptButton:SetScript("OnShow", CommunityFlare_AutoAcceptQueues_OnShow)
 	hooksecurefunc("PVPReadyDialog_Display", CommunityFlare_PVPReadyDialog_Display)
+	hooksecurefunc("PVPReadyDialog_OnHide", CommunityFlare_PVPReadyDialog_OnHide)
 	PVPReadyDialogEnterBattleButton:HookScript("OnClick", CommunityFlare_PVPReadyDialogEnterBattleButton_OnClick)
-	PVPReadyDialog:HookScript("OnHide", CommunityFlare_PVPReadyDialog_OnHide)
 
 	-- check if currently in queue
 	for i=1, GetMaxBattlefieldID() do
@@ -1490,6 +1447,9 @@ local function CommunityFlare_Process_Status_Check(sender)
 			-- reply to sender, not epic battleground
 			CommunityFlare_SendMessage(sender, strformat("%s: Not an Epic Battleground to track.", CF.MapInfo.name))
 		end
+
+		-- add to table for later
+		CF.StatusCheck[sender] = time()
 	else
 		-- check for queued battleground
 		CF.Leader = CommunityFlare_GetPartyLeader()
@@ -1604,12 +1564,27 @@ local function CommunityFlare_Report_Joined_With_Estimated_Time()
 				CF.Timer.Seconds = CF.Timer.Seconds - (CF.Timer.Minutes * 60)
 
 				-- does the player have the mercenary buff?
+				local text = ""
 				CommunityFlare_CheckForAura("player", "HELPFUL", "Mercenary Contract")
 				if (CF.HasAura == true) then
-					CommunityFlare_PopupBox(strformat("%s Joined Mercenary Queue! Estimated Wait: %d minutes, %d seconds", CommunityFlare_GetGroupCount(), CF.Timer.Minutes, CF.Timer.Seconds))
+					-- build text for mercenary queue
+					text = CommunityFlare_GetGroupCount() .. " Joined Mercenary Queue! Estimated Wait: " .. CF.Timer.Minutes .. " minutes, " .. CF.Timer.Seconds .. " seconds!"
 				else
-					CommunityFlare_PopupBox(strformat("%s Joined Queue! Estimated Wait: %d minutes, %d seconds", CommunityFlare_GetGroupCount(), CF.Timer.Minutes, CF.Timer.Seconds))
+					-- build text for normal epic battleground queue
+					text = CommunityFlare_GetGroupCount() .. " Joined Queue! Estimated Wait: " .. CF.Timer.Minutes .. " minutes, " .. CF.Timer.Seconds .. " seconds!"
 				end
+
+				-- check if group has room for more
+				if (CF.Count < 5) then
+					-- community auto invite enabled?
+					if (CommFlareDB.communityAutoInvite == "true") then
+						-- update text
+						text = text .. " (For auto invite, whisper me INV)"
+					end
+				end
+
+				-- send?
+				CommunityFlare_PopupBox(text)
 			else
 				-- try again
 				TimerAfter(0.2, CommunityFlare_Report_Joined_With_Estimated_Time)
@@ -1630,7 +1605,18 @@ local function CommunityFlare_Event_Chat_Message_System(...)
 			-- currently out of queue?
 			if (CF.QueueJoined == false) then
 				if (CommunityFlare_IsGroupLeader() == true) then
-					CommunityFlare_PopupBox(strformat("%s Ready!", CommunityFlare_GetGroupCount()))
+					-- check if group has room for more
+					text = CommunityFlare_GetGroupCount() .. " Ready!"
+					if (CF.Count < 5) then
+						-- community auto invite enabled?
+						if (CommFlareDB.communityAutoInvite == "true") then
+							-- update text
+							text = text .. " (For auto invite, whisper me INV)"
+						end
+					end
+
+					-- send?
+					CommunityFlare_PopupBox(text)
 				end
 			end
 		end
@@ -1797,20 +1783,20 @@ local function CommunityFlare_Event_Club_Member_Added(...)
 	-- sas community?
 	if (CommFlareDB.SASID == clubId) then
 		-- get member info
-		memberInfo = ClubGetMemberInfo(clubId, memberId)
-		if (memberInfo ~= nil) then
+		CF.MemberInfo = ClubGetMemberInfo(clubId, memberId)
+		if (CF.MemberInfo ~= nil) then
 			-- name not found?
-			if (not memberInfo.name) then
+			if (not CF.MemberInfo.name) then
 				-- try again, 2 seconds later
 				TimerAfter(2, function()
 					-- get member info
-					memberInfo = ClubGetMemberInfo(clubId, memberId)
+					CF.MemberInfo = ClubGetMemberInfo(clubId, memberId)
 
 					-- name not found?
-					if ((memberInfo ~= nil) and (memberInfo.name ~= nil)) then
+					if ((CF.MemberInfo ~= nil) and (CF.MemberInfo.name ~= nil)) then
 						-- display / update
-						print(strformat("Club Member Added: %s (%d, %d)", memberInfo.name, clubId, memberId))
-						CommunityFlare_Update_PlayerCache(memberInfo)
+						print(strformat("Club Member Added: %s (%d, %d)", CF.MemberInfo.name, clubId, memberId))
+						CommunityFlare_Update_PlayerCache(CF.MemberInfo)
 					else
 						-- failed
 						print("CLUB_MEMBER_ADDED: name still not found.")
@@ -1818,8 +1804,8 @@ local function CommunityFlare_Event_Club_Member_Added(...)
 				end)
 			else
 				-- display / update
-				print(strformat("Club Member Added: %s (%d, %d)", memberInfo.name, clubId, memberId))
-				CommunityFlare_Update_PlayerCache(memberInfo)
+				print(strformat("Club Member Added: %s (%d, %d)", CF.MemberInfo.name, clubId, memberId))
+				CommunityFlare_Update_PlayerCache(CF.MemberInfo)
 			end
 		end
 	end
@@ -1832,15 +1818,15 @@ local function CommunityFlare_Event_Club_Member_Removed(...)
 	-- sas community?
 	if (CommFlareDB.SASID == clubId) then
 		-- get member info
-		memberInfo = ClubGetMemberInfo(clubId, memberId);
-		if (memberInfo ~= nil) then
+		CF.MemberInfo = ClubGetMemberInfo(clubId, memberId);
+		if (CF.MemberInfo ~= nil) then
 			-- remove from player cache
-			if (memberInfo.name ~= nil) then
-				print(strformat("Club Member Removed: %s (%d, %d)", memberInfo.name, clubId, memberId))
+			if (CF.MemberInfo.name ~= nil) then
+				print(strformat("Club Member Removed: %s (%d, %d)", CF.MemberInfo.name, clubId, memberId))
 			else
-				DevTools_Dump(memberInfo)
+				DevTools_Dump(CF.MemberInfo)
 			end
-			CommunityFlare_RemoveFrom_PlayerCache(memberInfo)
+			CommunityFlare_RemoveFrom_PlayerCache(CF.MemberInfo)
 		end
 	end
 end
@@ -1849,12 +1835,70 @@ end
 local function CommunityFlare_Event_Group_Invite_Confirmation()
 	-- has text?
 	local text = StaticPopup1Text["text_arg1"]
-	if (not text and (text ~= "")) then
+	if (text and (text ~= "")) then
 		-- you will be removed from random epic battleground?
 		text = strlower(text)
 		if (strfind(text, "you will be removed from") and strfind(text, "random epic battleground")) then
 			if (StaticPopup1:IsShown()) then
 				StaticPopup1Button2:Click()
+			end
+		end
+	end
+end
+
+-- process lfg role check show
+local function CommunityFlare_Event_LFG_Role_Check_Show(...)
+	local isRequeue = ...
+	local inProgress, slots, members, category, lfgID, bgQueue = GetLFGRoleUpdate();
+
+	-- is battleground queue?
+	if (bgQueue) then
+		-- random epic battleground?
+		if (GetLFGRoleUpdateBattlegroundInfo() == "Random Epic Battleground") then
+			-- capable of auto queuing?
+			CF.AutoQueueable = false
+			if (not IsInRaid()) then
+				CF.AutoQueueable = true
+			else
+				-- larger than rated battleground count?
+				if (GetNumGroupMembers() > 10) then
+					CF.AutoQueueable = true
+				end
+			end
+
+			-- auto queueable?
+			CF.AutoQueue = false
+			if (CF.AutoQueueable == true) then
+					-- always auto queue?
+				if (CommFlareDB.alwaysAutoQueue == "true") then
+					CF.AutoQueue = true
+				-- community auto queue?
+				elseif (CommFlareDB.communityAutoQueue == "true") then
+					local player = CommunityFlare_FindClubMemberByName(CommunityFlare_GetPartyLeader())
+					if (player ~= nil) then
+						CF.AutoQueue = true
+					end
+				end
+			end
+
+			-- auto queue enabled?
+			if (CF.AutoQueue == true) then
+				CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
+				if (CF.HasAura == false) then
+					-- auto queue up
+					CF.QueueJoined = true
+					CF.QueuePopped = false
+
+					-- is shown?
+					if (LFDRoleCheckPopupAcceptButton:IsShown()) then
+						-- click auto accept
+						LFDRoleCheckPopupAcceptButton:Click()
+					end
+				else
+					-- have deserter / leave party
+					CommunityFlare_SendMessage(nil, "Sorry, I currently have Deserter! Leaving party to avoid interrupting the queue!")
+					PartyInfoLeaveParty()
+				end
 			end
 		end
 	end
@@ -1968,6 +2012,25 @@ local function CommunityFlare_Event_PVP_Match_Complete(...)
 	-- update battleground status
 	CF.MatchStatus = 3
 	CommunityFlare_Update_Battleground_Status()
+
+	-- report to anyone?
+	if (CF.StatusCheck) then
+		-- process all
+		local timer = 0.0
+		for k,v in pairs(CF.StatusCheck) do
+			-- send replies staggered
+			TimerAfter(timer, function()
+				-- battleground finished
+				CommunityFlare_SendMessage(k, "Epic Battleground has finished!")
+			end)
+
+			-- next
+			timer = timer + 0.2
+		end
+	end
+
+	-- clear
+	CF.StatusCheck = {}
 end
 
 -- process pvp match inactive
@@ -2039,15 +2102,13 @@ local function CommunityFlare_Event_Social_Queue_Update(...)
 		-- finished
 		return
 	end
-	--print("groupGUID: ", groupGUID)
-	--print("numAddedItems: ", numAddedItems)
 
 	-- attempt to find leaderGUID
 	local canJoin,numQueues,needTank,needHealer,needDamage,isSoloQueueParty,questSessionActive,leaderGUID = SocialQueueGetGroupInfo(groupGUID)
 	if (leaderGUID and CF.PlayerCache[leaderGUID]) then
 		-- check for random epic battlegrounds
-		queueData = CommunityFlare_FindSocialQueueByType("Random Epic Battleground", groupGUID, 1)
-		if (queueData ~= nil) then
+		CF.QueueData = CommunityFlare_FindSocialQueueByType("Random Epic Battleground", groupGUID, 1)
+		if (CF.QueueData ~= nil) then
 			-- get members
 			CF.SocialMembers = SocialQueueGetGroupMembers(groupGUID)
 			if (not CF.SocialMembers) then
@@ -2103,6 +2164,8 @@ local function CommunityFlare_EventHandler(self, event, ...)
 		CommunityFlare_Event_Club_Member_Removed(...)
 	elseif (event == "GROUP_INVITE_CONFIRMATION") then
 		CommunityFlare_Event_Group_Invite_Confirmation()
+	elseif (event == "LFG_ROLE_CHECK_SHOW") then
+		CommunityFlare_Event_LFG_Role_Check_Show(...)
 	elseif (event == "NOTIFY_PVP_AFK_RESULT") then
 		CommunityFlare_Event_Notify_PVP_AFK_Result(...)
 	elseif (event == "PARTY_INVITE_REQUEST") then
