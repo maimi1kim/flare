@@ -1,3 +1,8 @@
+v0.16 features:
+-Will now report your status to people who /w {you} !status or send !status to you on Battle.Net.
+-Even more changes behind the curtain for drop down settings.
+-Hooked a few more events to capture battleground status stuff.
+
 v0.15 features:
 -Updated framework for drop down setting boxes.
 -Bumped TOC to v10.0.2
