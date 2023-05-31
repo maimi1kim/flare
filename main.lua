@@ -34,6 +34,8 @@ local GetNumGroupMembers                        = _G.GetNumGroupMembers
 local GetNumSubgroupMembers                     = _G.GetNumSubgroupMembers
 local GetQuestID                                = _G.GetQuestID
 local GetRealmName                              = _G.GetRealmName
+local HideUIPanel                               = _G.HideUIPanel
+local InCombatLockdown                          = _G.InCombatLockdown
 local IsInGroup                                 = _G.IsInGroup
 local IsInRaid                                  = _G.IsInRaid
 local RespondToInviteConfirmation               = _G.RespondToInviteConfirmation
@@ -60,6 +62,7 @@ local PartyInfoInviteUnit                       = _G.C_PartyInfo.InviteUnit
 local PartyInfoLeaveParty                       = _G.C_PartyInfo.LeaveParty
 local PvPGetActiveMatchState                    = _G.C_PvP.GetActiveMatchState
 local PvPGetActiveMatchDuration                 = _G.C_PvP.GetActiveMatchDuration
+local PvPIsArena                                = _G.C_PvP.IsArena
 local PvPIsBattleground                         = _G.C_PvP.IsBattleground
 local TimerAfter                                = _G.C_Timer.After
 local Settings_OpenToCategory                   = _G.Settings.OpenToCategory
@@ -370,8 +373,10 @@ end
 local function CharacterMicroButton_OnMouseDown()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- enabled
 			CommFlare.CF.AllowCharacterFrame = true
 		else
@@ -385,20 +390,23 @@ end
 local function CharacterFrame_OnShow()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- blocked?
 			if (CommFlare.CF.AllowCharacterFrame ~= true) then
-				-- hide
-				HideUIPanel(CharacterFrame)
-			else
-				-- disabled
-				CommFlare.CF.AllowCharacterFrame = false
+				-- not in combat?
+				if (InCombatLockdown() ~= true) then
+					-- hide
+					HideUIPanel(CharacterFrame)
+					return
+				end
 			end
-		else
-			-- disabled
-			CommFlare.CF.AllowCharacterFrame = false
 		end
+
+		-- disabled
+		CommFlare.CF.AllowCharacterFrame = false
 	end
 end
 
@@ -415,8 +423,10 @@ end
 local function GuildMicroButton_OnMouseDown()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- enabled
 			CommFlare.CF.AllowCommunitiesFrame = true
 		else
@@ -430,20 +440,23 @@ end
 local function CommunitiesFrame_OnShow()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- blocked?
 			if (CommFlare.CF.AllowCommunitiesFrame ~= true) then
-				-- hide
-				HideUIPanel(CommunitiesFrame)
-			else
-				-- disabled
-				CommFlare.CF.AllowCommunitiesFrame = false
+				-- not in combat?
+				if (InCombatLockdown() ~= true) then
+					-- hide
+					HideUIPanel(CommunitiesFrame)
+					return
+				end
 			end
-		else
-			-- disabled
-			CommFlare.CF.AllowCommunitiesFrame = false
 		end
+
+		-- disabled
+		CommFlare.CF.AllowCommunitiesFrame = false
 	end
 end
 
@@ -460,8 +473,10 @@ end
 local function CollectionsMicroButton_OnMouseDown()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- enabled
 			CommFlare.CF.AllowCollectionsJournal = true
 		else
@@ -475,20 +490,23 @@ end
 local function CollectionsJournal_OnShow()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- blocked?
 			if (CommFlare.CF.AllowCollectionsJournal ~= true) then
-				-- hide
-				HideUIPanel(CollectionsJournal)
-			else
-				-- disabled
-				CommFlare.CF.AllowCollectionsJournal = false
+				-- not in combat?
+				if (InCombatLockdown() ~= true) then
+					-- hide
+					HideUIPanel(CollectionsJournal)
+					return
+				end
 			end
-		else
-			-- disabled
-			CommFlare.CF.AllowCollectionsJournal = false
 		end
+
+		-- disabled
+		CommFlare.CF.AllowCollectionsJournal = false
 	end
 end
 
@@ -505,8 +523,10 @@ end
 local function MainMenuMicroButton_OnMouseDown()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- enabled
 			CommFlare.CF.AllowMainMenu = true
 		else
@@ -520,20 +540,22 @@ end
 local function GameMenuFrame_OnShow()
 	-- block game menu hot keys enabled?
 	if (CommFlare.db.profile.blockGameMenuHotKeys == true) then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
+		-- inside pvp content?
+		local isArena = PvPIsArena()
+		local isBattleground = PvPIsBattleground()
+		if (isArena or isBattleground) then
 			-- blocked?
 			if (CommFlare.CF.AllowMainMenu ~= true) then
-				-- hide
-				HideUIPanel(GameMenuFrame)
-			else
-				-- disabled
-				CommFlare.CF.AllowMainMenu = false
+				-- not in combat?
+				if (InCombatLockdown() ~= true) then
+					-- hide
+					HideUIPanel(GameMenuFrame)
+				end
 			end
-		else
-			-- disabled
-			CommFlare.CF.AllowMainMenu = false
 		end
+
+		-- disabled
+		CommFlare.CF.AllowMainMenu = false
 	end
 end
 
@@ -1039,30 +1061,8 @@ end
 function CommFlare:INITIAL_CLUBS_LOADED(msg)
 	-- should readd community channels?
 	if (CommFlare.db.profile.alwaysReaddChannels == true) then
-		-- has main community?
-		if (CommFlare.db.profile.communityMain > 1) then
-			-- readd community chat window
-			NS.CommunityFlare_ReaddCommunityChatWindow(CommFlare.db.profile.communityMain, 1)
-		end
-
-		-- has other communities?
-		if (next(CommFlare.db.profile.communityList)) then
-			-- process all
-			local timer = 0.2
-			for k,v in pairs(CommFlare.db.profile.communityList) do
-				-- only process true
-				if (v == true) then
-					-- stagger readding
-					TimerAfter(timer, function ()
-						-- readd community chat window
-						NS.CommunityFlare_ReaddCommunityChatWindow(k, 1)
-					end)
-
-					-- next
-					timer = timer + 0.2
-				end
-			end
-		end
+		-- readd community channels after 2 seconds
+		TimerAfter(5, NS.CommunityFlare_ReaddChannelsInitialLoad)
 	end
 
 	-- process club members after 5 seconds

@@ -1,3 +1,10 @@
+v0.28 features:
+-/comf command should show proper counts for Tanks/Heals/Community and Mercenaries now.
+-Changed backend for readd community main channel to general window upon login.
+-Added Debug Options to be used in the future to help with debugging stuff.
+-Moved some Options around in the options menu.
+-New global function to get Report ID from other addons.
+
 v0.27 features:
 -New setting to set the main community to be used for all operations.
 -New setting to set any other communities to track for all operations.

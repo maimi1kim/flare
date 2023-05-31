@@ -494,13 +494,18 @@ function NS.CommunityFlare_Battleground_Setup(isPrint)
 		return
 	end
 
+	-- extra debugging?
+	if (CommFlare.db.profile.printDebugInfo == true) then
+		print("CommFlare Debug: NumScores = ", CommFlare.CF.NumScores)
+	end
+
 	-- process all scores
 	CommFlare.CF.MercList = nil
 	CommFlare.CF.PlayerList = nil
 	CommFlare.CF.CommNamesList = {}
 	CommFlare.CF.MercNamesList = {}
 	CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
-	for i=1, CommFlare.CF.NumScores do
+	for i=1, 80 do
 		CommFlare.CF.ScoreInfo = PvPGetScoreInfo(i)
 		if (CommFlare.CF.ScoreInfo and CommFlare.CF.ScoreInfo.faction and CommFlare.CF.ScoreInfo.talentSpec) then
 			-- is healer or tank?
@@ -581,6 +586,12 @@ function NS.CommunityFlare_Battleground_Setup(isPrint)
 				end
 			end
 		end
+	end
+
+	-- extra debugging?
+	if (CommFlare.db.profile.printDebugInfo == true) then
+		print("CommFlare Debug: Alliance.Count = ", CommFlare.CF.Alliance.Count)
+		print("CommFlare Debug: Horde.Count = ", CommFlare.CF.Horde.Count)
 	end
 
 	-- should print?

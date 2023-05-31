@@ -25,6 +25,7 @@ local UnitGUID                                  = _G.UnitGUID
 local UnitIsGroupLeader                         = _G.UnitIsGroupLeader
 local UnitName                                  = _G.UnitName
 local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
+local TimerAfter                                = _G.C_Timer.After
 local pairs                                     = _G.pairs
 local strformat                                 = _G.string.format
 
@@ -37,6 +38,14 @@ function IsDragonFlyable()
 	else
 		-- not available
 		return false
+	end
+end
+
+-- global function (send variables to other addons)
+function CommunityFlare_GetVar(name)
+	-- report ID
+	if (name == "ReportID") then
+		return CommFlare.db.profile.communityReportID
 	end
 end
 
@@ -115,6 +124,34 @@ function NS.CommunityFlare_ReaddCommunityChatWindow(clubId, streamId)
 
 		-- add channel
 		ChatFrame_AddChannel(ChatFrame1, channelName)
+	end
+end
+
+-- re-add community channels on initial load
+function NS.CommunityFlare_ReaddChannelsInitialLoad()
+	-- has main community?
+	if (CommFlare.db.profile.communityMain > 1) then
+		-- readd community chat window
+		NS.CommunityFlare_ReaddCommunityChatWindow(CommFlare.db.profile.communityMain, 1)
+	end
+
+	-- has other communities?
+	if (next(CommFlare.db.profile.communityList)) then
+		-- process all
+		local timer = 0.2
+		for k,v in pairs(CommFlare.db.profile.communityList) do
+			-- only process true
+			if (v == true) then
+				-- stagger readding
+				TimerAfter(timer, function ()
+					-- readd community chat window
+					NS.CommunityFlare_ReaddCommunityChatWindow(k, 1)
+				end)
+
+				-- next
+				timer = timer + 0.2
+			end
+		end
 	end
 end
 
