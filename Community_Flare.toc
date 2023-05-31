@@ -1,9 +1,11 @@
-## Interface: 100007
+## Interface: 100100
 ## Title: Community Flare
-## Version: v0.26
+## Version: v0.27
 ## Author: Mesostealthy
 ## SavedVariables: CommunityFlareDB
 ## OptionalDeps: Ace3
+## IconTexture: Interface\AddOns\Community_Flare\Media\icon.tga
+## AddonCompartmentFunc: CommunityFlare_AddonCompartmentOnClick
 
 Libs\LibStub\LibStub.lua
 Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
@@ -21,4 +23,8 @@ Libs\AceConfig-3.0\AceConfig-3.0.xml
 Libs\AceComm-3.0\AceComm-3.0.xml
 Libs\AceTab-3.0\AceTab-3.0.xml
 Libs\AceSerializer-3.0\AceSerializer-3.0.xml
+init.lua
+database.lua
+battlegrounds.lua
+options.lua
 main.lua

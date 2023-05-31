@@ -1,3 +1,19 @@
+v0.27 features:
+-New setting to set the main community to be used for all operations.
+-New setting to set any other communities to track for all operations.
+-New setting to set the community you wish to report queues and status to.
+-New setting to enable displaying community member names when gates open for Battlegrounds.
+-New setting to enable a warning if you try to Hearthstone or Teleport out of an active Battleground.
+-New setting to enable a warning if someone passes you group leader. (So you know you have to queue for the group!)
+-New setting to readd community main channel to general window upon login.
+-New /comf leaders command to check the order in which leaders get promoted in Battlegrounds.
+-!status for Wintergrasp now reports if the match they are in is Defense or Offense.
+-Issues a Raid Warning for yourself if someone makes you the party leader.
+-Separated some of the code to their own files as main is growing large.
+-Added Community Flare Icon for the IconTexture display.
+-Bugfix: Count is displayed when gates open as well now.
+-Bumped TOC to v10.1.0
+
 v0.26 features:
 -If someone is offline or dead, it now will only ask you to Kick them if you are party leader.
 -BUGFIX: Sometimes failed to create initial member database.
