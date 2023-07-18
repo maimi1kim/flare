@@ -118,9 +118,6 @@ function NS.CommunityFlare_Set_Main_Community(info, value)
 	-- save value
 	CommFlare.db.profile.communityMain = value
 
-	-- add all members
-	CommFlare.db.global.members = {}
-
 	-- has club id to add for?
 	if (value and (value > 1)) then
 		-- add all club members
@@ -133,6 +130,7 @@ function NS.CommunityFlare_Set_Main_Community(info, value)
 		NS.CommunityFlare_ReaddCommunityChatWindow(CommFlare.db.profile.communityReportID, 1)
 	else
 		-- clear community leaders
+		CommFlare.db.global.members = {}
 		CommFlare.CF.CommunityLeaders = {}
 		CommFlare.db.profile.communityReportID = 1
 	end
@@ -343,12 +341,12 @@ NS.defaults = {
 		autoQueueRandomEpicBgs = true,
 		blockGameMenuHotKeys = false,
 		blockSharedQuests = 2,
-		bnetAutoInvite = false,
+		bnetAutoInvite = true,
 		communityAutoAssist = 2,
 		communityAutoInvite = true,
-		communityAutoPromoteLeader = true,
 		communityAutoQueue = true,
 		communityDisplayNames = true,
+		communityPartyLeader = false,
 		communityReporter = true,
 		partyLeaderNotify = 2,
 		printDebugInfo = false,
@@ -613,18 +611,9 @@ NS.options = {
 					get = function(info) return CommFlare.db.profile.communityAutoAssist end,
 					set = function(info, value) CommFlare.db.profile.communityAutoAssist = value end,
 				},
-				communityAutoPromoteLeader = {
-					type = "toggle",
-					order = 2,
-					name = "Auto promote leaders in the Community? (Requires Raid Leader status.)",
-					desc = "This will automatically pass leadership from you to a recognized Community leader.",
-					width = "full",
-					get = function(info) return CommFlare.db.profile.communityAutoPromoteLeader end,
-					set = function(info, value) CommFlare.db.profile.communityAutoPromoteLeader = value end,
-				},
 				blockSharedQuests = {
 					type = "select",
-					order = 3,
+					order = 2,
 					name = "Block shared quests?",
 					desc = "Automatically blocks shared quests during a Battleground.",
 					values = {
@@ -637,7 +626,7 @@ NS.options = {
 				},
 				communityDisplayNames = {
 					type = "toggle",
-					order = 4,
+					order = 3,
 					name = "Displays community member names when running /comf command.",
 					desc = "This will automatically display all community members found in the Battleground when the /comf command is run.",
 					width = "full",
@@ -646,7 +635,7 @@ NS.options = {
 				},
 				warningLeavingBG = {
 					type = "select",
-					order = 5,
+					order = 4,
 					name = "Warn before Hearthstoning or Teleporting inside a Battleground?",
 					desc = "Performs an action if you are about to Hearthstone or Teleport out of an active Battleground.",
 					values = {
@@ -658,7 +647,7 @@ NS.options = {
 				},
 				blockGameMenuHotKeys = {
 					type = "toggle",
-					order = 6,
+					order = 5,
 					name = "Block Game Menu hotkeys inside PvP Content?",
 					desc = "This will block the Game Menus from coming up inside an Arena or Battleground from pressing their hot keys. (To block during recording videos for example.)",
 					width = "full",

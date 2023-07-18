@@ -1,7 +1,10 @@
-Community Flare Addon for World of Warcraft (Dragonflight)
+Community Flare Addon for World of Warcraft (Dragonflight) v10.1.5
 - Helps track Community Members from your Community in Battlegrounds.
 - Also helps to make Queing up for Battlegrounds more pleasant.
 - Fixes some annoyances by the standard UI.
 
 Installation:
 - Simply drag the "Community_Flare" folder into your {World of Warcraft}\_retail_\Addons folder.
+
+Notes:
+- Check changes.txt to see what's been updated each revision.

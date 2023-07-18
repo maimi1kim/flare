@@ -1,3 +1,10 @@
+v0.29 features:
+-Bugfix: !status reports proper Community Members count before the Gates opened in Epic Battlegrounds now.
+-Should Auto Ready Check & Auto Queue if you have no toons in ALTS and an ALT is your party leader.
+-Should auto update member notes, roles and priorities upon any changed upon login in the database.
+-Changed some backend stuff for how leadership is auto passed to Leaders in priority list.
+-Bumped TOC to v10.1.5
+
 v0.28 features:
 -/comf command should show proper counts for Tanks/Heals/Community and Mercenaries now.
 -Changed backend for readd community main channel to general window upon login.

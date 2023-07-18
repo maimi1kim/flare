@@ -9,6 +9,7 @@ local ClubGetClubMembers                        = _G.C_Club.GetClubMembers
 local ClubGetMemberInfo                         = _G.C_Club.GetMemberInfo
 local ClubGetSubscribedClubs                    = _G.C_Club.GetSubscribedClubs
 local TimerAfter                                = _G.C_Timer.After
+local date                                      = _G.date
 local ipairs                                    = _G.ipairs
 local pairs                                     = _G.pairs
 local print                                     = _G.print
@@ -117,6 +118,29 @@ function NS.CommunityFlare_GetMemberPriority(info)
 	return nil
 end
 
+-- add community
+function NS.CommunityFlare_AddCommunity(id, info)
+	-- sanity checks?
+	if (not CommFlare.db.global) then
+		-- initialize
+		CommFlare.db.global = {}
+	end
+	if (not CommFlare.db.global.communities) then
+		-- initialize
+		CommFlare.db.global.communities = {}
+	end
+
+	-- add to communities
+	CommFlare.db.global.communities[id] = {
+		["avatarId"] = info.avatarId,
+		["clubType"] = info.clubType,
+		["clubId"] = info.clubId,
+		["name"] = info.name,
+		["shortName"] = info.shortName,
+		["crossFaction"] = info.crossFaction,
+	}
+end
+
 -- add member
 function NS.CommunityFlare_AddMember(id, info)
 	-- build proper name
@@ -152,16 +176,20 @@ function NS.CommunityFlare_AddMember(id, info)
 				CommFlare.db.global.members[player].memberNote = info.memberNote
 				CommFlare.db.global.members[player].priority = NS.CommunityFlare_GetMemberPriority(info)
 			end
+
+			-- add updated date
+			CommFlare.db.global.members[player].updated = date()
 		end
 	else
 		-- add to members
 		CommFlare.db.global.members[player] = {
-			clubId = id,
-			name = player,
-			guid = info.guid,
-			role = info.role,
-			memberNote = info.memberNote,
-			priority = NS.CommunityFlare_GetMemberPriority(info),
+			["clubId"] = id,
+			["name"] = player,
+			["guid"] = info.guid,
+			["role"] = info.role,
+			["added"] = date(),
+			["memberNote"] = info.memberNote,
+			["priority"] = NS.CommunityFlare_GetMemberPriority(info),
 		}
 	end
 
@@ -348,6 +376,7 @@ function NS.CommunityFlare_Process_Club_Members()
 	end
 
 	-- find main community members
+	local clubs = {}
 	local clubId = NS.CommunityFlare_FindClubID(name)
 	if (clubId > 0) then
 		-- main community not set?
@@ -355,6 +384,25 @@ function NS.CommunityFlare_Process_Club_Members()
 			-- update community main
 			CommFlare.db.profile.communityMain = clubId
 		end
+
+		-- add club id
+		tinsert(clubs, clubId)
+	end
+
+	-- has community list?
+	if (CommFlare.db.profile.communityList and (next(CommFlare.db.profile.communityList) ~= nil)) then
+		-- process all lists
+		for k,_ in pairs(CommFlare.db.profile.communityList) do
+			-- add club id
+			tinsert(clubs, k)
+		end
+	end
+
+	-- process clubs
+	for _,clubId in ipairs(clubs) do
+		-- add community
+		local info = ClubGetClubInfo(clubId)
+		NS.CommunityFlare_AddCommunity(clubId, info)
 
 		-- process all members
 		local members = ClubGetClubMembers(clubId)
@@ -366,23 +414,7 @@ function NS.CommunityFlare_Process_Club_Members()
 			end
 		end
 	end
-
-	-- has community list?
-	if (CommFlare.db.profile.communityList and (next(CommFlare.db.profile.communityList) ~= nil)) then
-		-- process all lists
-		for k,_ in pairs(CommFlare.db.profile.communityList) do
-			-- process all members
-			clubId = k
-			local members = ClubGetClubMembers(clubId)
-			for _,v in ipairs(members) do
-				local mi = ClubGetMemberInfo(clubId, v)
-				if ((mi ~= nil) and (mi.name ~= nil)) then
-					-- add member
-					NS.CommunityFlare_AddMember(clubId, mi)
-				end
-			end
-		end
-	end
+	wipe(clubs)
 
 	-- has members?
 	if (CommFlare.db.global.members and (next(CommFlare.db.global.members) ~= nil)) then
@@ -390,6 +422,16 @@ function NS.CommunityFlare_Process_Club_Members()
 		if (not CommFlare.CF.CommunityLeaders or (next(CommFlare.CF.CommunityLeaders) == nil)) then
 			-- build community leaders
 			NS.CommunityFlare_RebuildCommunityLeaders()
+		end
+	end
+
+	-- has report ID?
+	if (CommFlare.db.profile.communityReportID > 1) then
+		-- verify channel is added for proper reporting
+		local channel, chatFrameID = Chat_GetCommunitiesChannel(CommFlare.db.profile.communityReportID, 1)
+		if (not channel or not chatFrameID) then
+			-- readd community chat window
+			NS.CommunityFlare_ReaddCommunityChatWindow(CommFlare.db.profile.communityReportID, 1)
 		end
 	end
 end
@@ -400,6 +442,7 @@ function NS.CommunityFlare_ClubMemberAdded(clubId, memberId)
 	CommFlare.CF.MemberInfo = ClubGetMemberInfo(clubId, memberId)
 	if (CommFlare.CF.MemberInfo ~= nil) then
 		-- name not found?
+		local info = ClubGetClubInfo(clubId)
 		if (not CommFlare.CF.MemberInfo.name) then
 			-- try again, 2 seconds later
 			TimerAfter(2, function()
@@ -409,7 +452,7 @@ function NS.CommunityFlare_ClubMemberAdded(clubId, memberId)
 				-- name not found?
 				if ((CommFlare.CF.MemberInfo ~= nil) and (CommFlare.CF.MemberInfo.name ~= nil)) then
 					-- display
-					print(strformat("%s: Member %s (%d, %d) added to Community.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId))
+					print(strformat("%s: %s (%d, %d) added to Community %s.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId, info.name))
 
 					-- add member
 					NS.CommunityFlare_AddMember(clubId, CommFlare.CF.MemberInfo)
@@ -417,7 +460,7 @@ function NS.CommunityFlare_ClubMemberAdded(clubId, memberId)
 			end)
 		else
 			-- display
-			print(strformat("%s: Member %s (%d, %d) added to Community.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId))
+			print(strformat("%s: %s (%d, %d) added to Community %s.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId, info.name))
 
 			-- add member
 			NS.CommunityFlare_AddMember(clubId, CommFlare.CF.MemberInfo)
@@ -431,9 +474,10 @@ function NS.CommunityFlare_ClubMemberRemoved(clubId, memberId)
 	CommFlare.CF.MemberInfo = ClubGetMemberInfo(clubId, memberId)
 	if (CommFlare.CF.MemberInfo ~= nil) then
 		-- found member name?
+		local info = ClubGetClubInfo(clubId)
 		if (CommFlare.CF.MemberInfo.name ~= nil) then
 			-- display
-			print(strformat("%s: Member %s (%d, %d) removed from Community.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId))
+			print(strformat("%s: %s (%d, %d) removed from Community %s.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId, info.name))
 		end
 	end
 end
@@ -453,7 +497,21 @@ function NS.CommunityFlare_ClubMemberUpdated(clubId, memberId)
 		-- exists?
 		if (CommFlare.db.global.members[player] and CommFlare.db.global.members[player].clubId) then
 			-- role updated?
+			local rebuild = false
 			if (CommFlare.db.global.members[player].role ~= CommFlare.CF.MemberInfo.role) then
+				-- new leader added?
+				if (CommFlare.CF.MemberInfo.role == Enum.ClubRoleIdentifier.Leader) then
+					-- rebuild
+					rebuild = true
+				-- old leader removed?
+				elseif (CommFlare.db.global.members[player].role == Enum.ClubRoleIdentifier.Leader) then
+					-- remove priority
+					CommFlare.db.global.members[player].priority = nil
+
+					-- rebuild
+					rebuild = true
+				end
+
 				-- update role
 				CommFlare.db.global.members[player].role = CommFlare.CF.MemberInfo.role
 			end
@@ -464,11 +522,74 @@ function NS.CommunityFlare_ClubMemberUpdated(clubId, memberId)
 				CommFlare.db.global.members[player].memberNote = CommFlare.CF.MemberInfo.memberNote
 				CommFlare.db.global.members[player].priority = NS.CommunityFlare_GetMemberPriority(CommFlare.CF.MemberInfo)
 
-				-- rebuild leaders
+				-- rebuild
+				rebuild = true
+			end
+
+			-- currently leader?
+			if (CommFlare.db.global.members[player].role == Enum.ClubRoleIdentifier.Leader) then
+				-- get priority from member note
+				local priority = NS.CommunityFlare_GetMemberPriority(CommFlare.CF.MemberInfo)
+				if (CommFlare.db.global.members[player].priority ~= priority) then
+					-- update priority
+					CommFlare.db.global.members[player].priority = priority
+
+					-- rebuild
+					rebuild = true
+				end
+			end
+
+			-- rebuild leaders?
+			if (rebuild == true) then
+				-- rebuild community leaders
 				NS.CommunityFlare_RebuildCommunityLeaders()
 			end
 		end
 	end
+end
+
+-- find community members who left?
+function NS.CommunityFlare_FindExCommunityMembers(clubId)
+	local count = 0
+	local current = {}
+	local members = ClubGetClubMembers(clubId)
+	for _,v in ipairs(members) do
+		local info = ClubGetMemberInfo(clubId, v)
+		if ((info ~= nil) and (info.name ~= nil)) then
+			-- build proper name
+			local player = info.name
+			if (not strmatch(player, "-")) then
+				-- add realm name
+				player = player .. "-" .. GetRealmName()
+			end
+
+			-- add to current
+			current[player] = info
+		end
+	end
+
+	-- process all
+	local removed = {}
+	for k,v in pairs(CommFlare.db.global.members) do
+		-- matches?
+		if (v.clubId == clubId) then
+			-- not found in current?
+			if (not current[k]) then
+				-- add removed
+				removed[k] = k
+				count = count + 1
+			end
+		end
+	end
+
+	-- save removed
+	CommFlare.db.global.removed = removed
+
+	-- wipe old
+	wipe(current)
+
+	-- display count
+	print("Count: ", count)
 end
 
 -- is community leader? (yes, intended to be global)
@@ -509,6 +630,35 @@ function CommunityFlare_IsCommunityMember(name)
 
 	-- return status
 	return isMember
+end
+
+-- get community member (yes, intended to be global)
+function CommunityFlare_GetCommunityMember(name)
+	-- invalid name?
+	if (not name or (name == "")) then
+		-- failed
+		return nil
+	end
+
+	-- need full player-server name
+	local isMember = false
+	local player, realm = strsplit("-", name, 2)
+	if (not realm or (realm == "")) then
+		-- add realm name
+		player = player .. "-" .. GetRealmName()
+	else
+		-- copy name
+		player = name
+	end
+
+	-- check inside database first
+	if (player and (player ~= "") and CommFlare.db.global and CommFlare.db.global.members and CommFlare.db.global.members[player]) then
+		-- success
+		return CommFlare.db.global.members[player]
+	end
+
+	-- failed
+	return nil
 end
 
 -- find player by GUID (yes, intended to be global)

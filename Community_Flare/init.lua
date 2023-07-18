@@ -28,6 +28,8 @@ local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
 local TimerAfter                                = _G.C_Timer.After
 local pairs                                     = _G.pairs
 local strformat                                 = _G.string.format
+local strgmatch                                 = _G.string.gmatch
+local tinsert                                   = _G.table.insert
 
 -- global function (check if dragon riding available)
 function IsDragonFlyable()
@@ -47,6 +49,61 @@ function CommunityFlare_GetVar(name)
 	if (name == "ReportID") then
 		return CommFlare.db.profile.communityReportID
 	end
+end
+
+-- convert table to string
+function NS.CommunityFlare_TableToString(table)
+	-- load libraries
+	local libS = LibStub:GetLibrary("AceSerializer-3.0")
+	local libD = LibStub:GetLibrary("LibDeflate")
+
+	-- all loaded?
+	if (libS and libD) then
+		-- serialize and compress
+		local one = libS:Serialize(table)
+		local two = libD:CompressDeflate(one, {level = 9})
+		local final = libD:EncodeForPrint(two)
+
+		-- return final
+		return final
+	end
+
+	-- failed
+	return nil
+end
+
+-- convert string to table
+function NS.CommunityFlare_StringToTable(string)
+	-- load libraries
+	local libS = LibStub:GetLibrary("AceSerializer-3.0")
+	local libD = LibStub:GetLibrary("LibDeflate")
+
+	-- all loaded?
+	if (libS and libD) then
+		-- decode, decompress, deserialize
+		local one = libD:DecodeForPrint(string)
+		local two = libD:DecompressDeflate(one)
+		local status, final = libS:Deserialize(two)
+
+		-- success?
+		if (status == true) then
+			-- return final
+			return final
+		end
+	end
+
+	-- failed
+	return nil
+end
+
+-- parse command
+function NS.CommunityFlare_ParseCommand(text)
+	local table = {}
+	local params = strgmatch(text, "([^@]+)");
+	for param in params do
+		tinsert(table, param)
+	end
+	return table
 end
 
 -- load session variables

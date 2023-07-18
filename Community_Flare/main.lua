@@ -100,6 +100,7 @@ CommFlare.CF = {
 	ClubCount = 0,
 	Count = 0,
 	CommCount = 0,
+	EstimatedWaitTime = 0,
 	Expiration = 0,
 	HideIndex = 0,
 	IsHealer = 0,
@@ -120,26 +121,25 @@ CommFlare.CF = {
 	Field = nil,
 	Header = nil,
 	Leader = nil,
-	MercList = nil,
 	Options = nil,
 	PartyGUID = nil,
-	PlayerList = nil,
 	PopupMessage = nil,
 	Winner = nil,
 
 	-- tables
 	Clubs = {},
 	ClubMembers = {},
+	CommCounts = {},
 	CommNamesList = {},
 	CommunityLeaders = {},
 	MapInfo = {},
 	MemberInfo = {},
 	MercNamesList = {},
+	PlayerInfo = {},
 	POIInfo = {},
 	Queues = {},
 	ReadyCheck = {},
 	RoleChosen = {},
-	ScoreInfo = {},
 	StatusCheck = {},
 	WidgetInfo = {},
 
@@ -583,8 +583,12 @@ local function CommunityFlare_SetupHooks()
 	-- hooks for blocking collections menu hotkeys inside a battleground
 	CommFlare.CF.AllowCollectionsJournal = false
 	CollectionsMicroButton:HookScript("OnMouseDown", CollectionsMicroButton_OnMouseDown)
-	CollectionsJournal:HookScript("OnShow", CollectionsJournal_OnShow)
-	CollectionsJournal:HookScript("OnHide", CollectionsJournal_OnHide)
+
+	-- huh?
+	if (CollectionsJournal ~= nil) then
+		CollectionsJournal:HookScript("OnShow", CollectionsJournal_OnShow)
+		CollectionsJournal:HookScript("OnHide", CollectionsJournal_OnHide)
+	end
 
 	-- hooks for blocking escape key inside a battleground
 	CommFlare.CF.AllowMainMenu = false
@@ -610,10 +614,13 @@ end
 -- handle chat whisper filtering
 local function CommunityFlare_Chat_Whisper_Filter(self, event, msg, author, ...)
 	-- found internal message?
-	if (msg:find("!CF::")) then
+	if (msg:find("!CF@")) then
 		-- suppress
 		return true
 	end
+
+	-- normal
+	return false
 end
 
 --------------------------
@@ -628,6 +635,10 @@ function CommFlare:Community_Flare_SlashCommand(input)
 		-- check for inactive players
 		print("Checking for inactive players")
 		NS.CommunityFlare_Check_For_Inactive_Players()
+	elseif (input == "findold") then
+		-- check for older members
+		print("Checking for older members")
+		NS.CommunityFlare_FindExCommunityMembers(CommFlare.db.profile.communityMain)
 	elseif (input == "leaders") then
 		-- rebuild leaders
 		NS.CommunityFlare_RebuildCommunityLeaders()
@@ -661,6 +672,36 @@ function CommFlare:Community_Flare_SlashCommand(input)
 	else
 		-- display full battleground setup
 		NS.CommunityFlare_Battleground_Setup(true)
+	end
+end
+
+-- communication received
+function CommFlare:Community_Flare_OnCommReceived(prefix, message, distribution, sender)
+	-- verify prefix
+	if (prefix == "Community_Flare") then
+		-- debug enabled?
+		if (CommFlare.db.profile.printDebugInfo == true) then
+			-- display info
+			print("sender: ", sender)
+			print("distribution: ", distribution)
+			print("message: ", message)
+		end
+
+		-- get player name
+		local player = UnitName("player")
+		if (player ~= sender) then
+			-- group joined?
+			if (message:find("GROUP_ROSTER_UPDATE")) then
+				-- are you group leader?
+				if (NS.CommunityFlare_IsGroupLeader() ~= true) then
+					-- community member?
+					if (message:find("YES")) then
+						-- enable community party leader
+						CommFlare.db.profile.communityPartyLeader = true
+					end
+				end
+			end
+		end
 	end
 end
 
@@ -755,41 +796,22 @@ function CommFlare:CHAT_MSG_SYSTEM(msg, ...)
 	-- someone has joined the battleground?
 	text = strlower(text)
 	if (text:find("has joined the instance group")) then
-		-- community auto promote leader enabled?
-		if (CommFlare.db.profile.communityAutoPromoteLeader == true) then
-			-- not community leader?
-			local player = NS.CommunityFlare_GetPlayerName("full")
-			if (CommunityFlare_IsCommunityLeader(player) == false) then
-				-- do you have lead?
-				CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
-				if (CommFlare.CF.PlayerRank == 2) then
-					-- process all community leaders
-					for _,v in ipairs(CommFlare.CF.CommunityLeaders) do
-						-- promote this leader
-						if (NS.CommunityFlare_Battleground_PromoteToLeader(v) == true) then
-							-- success
-							break
-						end
-					end
+		-- do you have lead?
+		local player = NS.CommunityFlare_GetPlayerName("full")
+		CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
+		if (CommFlare.CF.PlayerRank == 2) then
+			-- process all community leaders
+			for _,v in ipairs(CommFlare.CF.CommunityLeaders) do
+				-- already leader?
+				if (player == v) then
+					-- success
+					break
 				end
-			else
-				-- do you have lead?
-				CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
-				if (CommFlare.CF.PlayerRank == 2) then
-					-- process all community leaders
-					for _,v in ipairs(CommFlare.CF.CommunityLeaders) do
-						-- already leader?
-						if (player == v) then
-							-- success
-							break
-						end
 
-						-- promote this leader
-						if (NS.CommunityFlare_Battleground_PromoteToLeader(v) == true) then
-							-- success
-							break
-						end
-					end
+				-- promote this leader
+				if (NS.CommunityFlare_Battleground_PromoteToLeader(v) == true) then
+					-- success
+					break
 				end
 			end
 		end
@@ -806,51 +828,59 @@ end
 function CommFlare:CHAT_MSG_WHISPER(msg, ...)
 	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
 
-	-- version check?
-	text = strlower(text)
-	if (text == "!cf") then
-		-- send community flare version number
-		NS.CommunityFlare_SendMessage(sender, strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
-	-- pass leadership?
-	elseif (text == "!pl") then
-		-- not community leader?
-		local player = NS.CommunityFlare_GetPlayerName("full")
-		if (CommunityFlare_IsCommunityLeader(player) == false) then
-			-- do you have lead?
-			CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
-			if (CommFlare.CF.PlayerRank == 2) then
-				-- community leader?
-				if (CommunityFlare_IsCommunityLeader(sender) == true) then
-					NS.CommunityFlare_Battleground_PromoteToLeader(sender)
-				end
-			end
-		end
-	-- status check?
-	elseif (text == "!status") then
-		-- process status check
-		NS.CommunityFlare_Process_Status_Check(sender)
-	-- asking for invite?
-	elseif ((text == "inv") or (text == "invite")) then
-		-- community auto invite enabled?
-		if (CommFlare.db.profile.communityAutoInvite == true) then
-			-- inside battleground?
-			if (PvPIsBattleground() == true) then
-				NS.CommunityFlare_SendMessage(sender, "Sorry, currently in a Battleground now.")
-			else
-				-- is sender a community member?
-				CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(sender)
-				if (CommFlare.CF.AutoInvite == true) then
-					-- group is full?
-					if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
-						NS.CommunityFlare_SendMessage(sender, "Sorry, group is currently full.")
-					else
-						PartyInfoInviteUnit(sender)
+	-- internal command?
+	if (text:find("!CF@")) then
+		-- parse command
+		local params = NS.CommunityFlare_ParseCommand(text)
+		print("Author: ", author)
+		DevTools_Dump(params)
+	else
+		-- version check?
+		text = strlower(text)
+		if (text == "!cf") then
+			-- send community flare version number
+			NS.CommunityFlare_SendMessage(sender, strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
+		-- pass leadership?
+		elseif (text == "!pl") then
+			-- not community leader?
+			local player = NS.CommunityFlare_GetPlayerName("full")
+			if (CommunityFlare_IsCommunityLeader(player) == false) then
+				-- do you have lead?
+				CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
+				if (CommFlare.CF.PlayerRank == 2) then
+					-- community leader?
+					if (CommunityFlare_IsCommunityLeader(sender) == true) then
+						NS.CommunityFlare_Battleground_PromoteToLeader(sender)
 					end
 				end
 			end
-		else
-			-- auto invite not enabled
-			NS.CommunityFlare_SendMessage(sender, "Sorry, community auto invite not enabled.")
+		-- status check?
+		elseif (text == "!status") then
+			-- process status check
+			NS.CommunityFlare_Process_Status_Check(sender)
+		-- asking for invite?
+		elseif ((text == "inv") or (text == "invite")) then
+			-- community auto invite enabled?
+			if (CommFlare.db.profile.communityAutoInvite == true) then
+				-- inside battleground?
+				if (PvPIsBattleground() == true) then
+					NS.CommunityFlare_SendMessage(sender, "Sorry, currently in a Battleground now.")
+				else
+					-- is sender a community member?
+					CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(sender)
+					if (CommFlare.CF.AutoInvite == true) then
+						-- group is full?
+						if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
+							NS.CommunityFlare_SendMessage(sender, "Sorry, group is currently full.")
+						else
+							PartyInfoInviteUnit(sender)
+						end
+					end
+				end
+			else
+				-- auto invite not enabled
+				NS.CommunityFlare_SendMessage(sender, "Sorry, community auto invite not enabled.")
+			end
 		end
 	end
 end
@@ -917,6 +947,7 @@ function CommFlare:GROUP_INVITE_CONFIRMATION(msg)
 	if (autoInvite == true) then
 		-- read the text
 		local text = StaticPopup1Text["text_arg1"]
+		print("text: ", text)
 		if (text and (text ~= "")) then
 			-- has requested to join your group?
 			text = strlower(text)
@@ -1020,12 +1051,33 @@ end
 function CommFlare:GROUP_LEFT(msg, ...)
 	local category, partyGUID = ...
 
+	-- disable community party leader
+	CommFlare.db.profile.communityPartyLeader = false
+
 	-- delete partyGUID
 	CommFlare.CF.PartyGUID = nil
 end
 
 -- process group roster update
 function CommFlare:GROUP_ROSTER_UPDATE(msg)
+	-- party leader?
+	local leader = NS.CommunityFlare_GetPartyLeader()
+	local player = NS.CommunityFlare_GetPlayerName("full")
+	if (player == leader) then
+		-- community member?
+		local message = "GROUP_ROSTER_UPDATE"
+		if (CommFlare.db.profile.communityMain > 1) then
+			-- append YES
+			message = message .. ":YES"
+		else
+			-- append NO
+			message = message .. ":NO"
+		end
+
+		-- send party joined message
+		CommFlare:SendCommMessage("Community_Flare", message, "PARTY")
+	end
+
 	-- not in raid and in group?
 	if (not IsInRaid() and IsInGroup()) then
 		-- are you group leader?
@@ -1137,6 +1189,12 @@ function CommFlare:LFG_ROLE_CHECK_SHOW(msg, ...)
 				end
 			end
 
+			-- party leader is community?
+			if (CommFlare.db.profile.communityPartyLeader == true) then
+				-- wants to auto queue
+				CommFlare.CF.AutoQueable = true
+			end
+
 			-- is auto queue allowed?
 			if (CommFlare.CF.AutoQueueable == true) then
 				-- capable of auto queuing?
@@ -1153,8 +1211,13 @@ function CommFlare:LFG_ROLE_CHECK_SHOW(msg, ...)
 				-- auto queueable?
 				CommFlare.CF.AutoQueue = false
 				if (CommFlare.CF.AutoQueueable == true) then
+					-- party leader is community?
+					if (CommFlare.db.profile.communityPartyLeader == true) then
+						-- auto queue enabled
+						CommFlare.CF.AutoQueue = true
 					-- always auto queue?
-					if (CommFlare.db.profile.alwaysAutoQueue == true) then
+					elseif (CommFlare.db.profile.alwaysAutoQueue == true) then
+						-- auto queue enabled
 						CommFlare.CF.AutoQueue = true
 					-- community auto queue?
 					elseif (CommFlare.db.profile.communityAutoQueue == true) then
@@ -1219,6 +1282,34 @@ function CommFlare:PARTY_INVITE_REQUEST(msg, ...)
 				end
 			end
 		end
+
+		-- not enabled?
+		if (CommFlare.CF.AutoInvite == false) then
+			-- battle net auto invite enabled?
+			if (CommFlare.db.profile.bnetAutoInvite == true) then
+				local info = BattleNetGetAccountInfoByGUID(guid)
+				if (info and (info.isFriend == true)) then
+					-- auto invite enabled
+					CommFlare.CF.AutoInvite = true
+				end
+			end
+		end
+
+		-- should auto invite?
+		if (CommFlare.CF.AutoInvite == true) then
+			-- lfg invite popup shown?
+			if (LFGInvitePopup:IsShown()) then
+				-- click accept button
+				LFGInvitePopupAcceptButton:Click()
+			-- static popup shown?
+			elseif (StaticPopup_FindVisible("PARTY_INVITE")) then
+				-- accept party
+				AcceptGroup()
+
+				-- hide
+				StaticPopup_Hide("PARTY_INVITE")
+			end
+		end
 	else
 		-- send whisper back that you have deserter
 		NS.CommunityFlare_SendMessage(sender, "Sorry, I currently have Deserter!")
@@ -1261,7 +1352,8 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 			CommFlare.db.global = {}
 		end
 
-		-- load / initialize members
+		-- load / initialize communities + members
+		CommFlare.db.global.communities = CommFlare.db.global.communities or {}
 		CommFlare.db.global.members = CommFlare.db.global.members or {}
 
 		-- add chat whisper filtering
@@ -1300,6 +1392,9 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 
 			-- process club members after 5 seconds
 			TimerAfter(5, NS.CommunityFlare_Process_Club_Members)
+		else
+			-- disable community party leader
+			CommFlare.db.profile.communityPartyLeader = false
 		end
 	end
 end
@@ -1691,7 +1786,7 @@ function CommFlare:UNIT_SPELLCAST_START(msg, ...)
 				-- teleporting?
 				elseif (NS.TeleportSpells[spellID]) then
 					-- raid warning?
-						if (CommFlare.db.profile.warningLeavingBG == 2) then
+					if (CommFlare.db.profile.warningLeavingBG == 2) then
 						-- issue raid warning (with raid warning audio sound)
 						RaidWarningFrame_OnEvent(RaidBossEmoteFrame, "CHAT_MSG_RAID_WARNING", "Are you really sure you want to TELEPORT?")
 					end
@@ -1735,6 +1830,7 @@ function CommFlare:UPDATE_BATTLEFIELD_STATUS(msg, ...)
 						-- only report joined queues for group leaders
 						if (NS.CommunityFlare_IsGroupLeader() == true) then
 							-- report joined queue with estimated time
+							CommFlare.CF.EstimatedWaitTime = 0
 							NS.CommunityFlare_Report_Joined_With_Estimated_Time()
 						end
 					end
@@ -1935,3 +2031,6 @@ end
 
 -- register slash command
 CommFlare:RegisterChatCommand("comf", "Community_Flare_SlashCommand")
+
+-- register addon communication
+CommFlare:RegisterComm("Community_Flare", "Community_Flare_OnCommReceived")

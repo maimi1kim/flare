@@ -1,6 +1,6 @@
-## Interface: 100100
+## Interface: 100105
 ## Title: Community Flare
-## Version: v0.28
+## Version: v0.29
 ## Author: Mesostealthy
 ## SavedVariables: CommunityFlareDB
 ## OptionalDeps: Ace3
@@ -23,6 +23,7 @@ Libs\AceConfig-3.0\AceConfig-3.0.xml
 Libs\AceComm-3.0\AceComm-3.0.xml
 Libs\AceTab-3.0\AceTab-3.0.xml
 Libs\AceSerializer-3.0\AceSerializer-3.0.xml
+Libs\LibDeflate\lib.xml
 init.lua
 database.lua
 battlegrounds.lua
