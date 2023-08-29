@@ -5,6 +5,8 @@ local _G                                        = _G
 local GetAddOnMetadata                          = _G.C_AddOns and _G.C_AddOns.GetAddOnMetadata or _G.GetAddOnMetadata
 local ClubGetSubscribedClubs                    = _G.C_Club.GetSubscribedClubs
 local ipairs                                    = _G.ipairs
+local print                                     = _G.print
+local strformat                                 = _G.string.format
 
 -- get current version
 NS.CommunityFlare_Title = GetAddOnMetadata("Community_Flare", "Title") or "unspecified"
@@ -307,6 +309,34 @@ function NS.CommunityFlare_Total_Database_Members(info)
 	return "Database Members Found: " .. count
 end
 
+-- rebuild database members
+function NS.CommunityFlare_Rebuild_Database_Members()
+	-- sanity checks?
+	if (not CommFlare.db.global) then
+		-- initialize
+		CommFlare.db.global = {}
+	end
+
+	-- clear lists
+	CommFlare.db.global.members = {}
+	CommFlare.CF.CommunityLeaders = {}
+
+	-- process club members again
+	print("Rebuilding Community Database Memberlist.")
+	NS.CommunityFlare_Process_Club_Members()
+
+	-- display members found
+	print(NS.CommunityFlare_Total_Database_Members(nil))
+
+	-- display leaders count
+	local count = 0
+	for _,v in ipairs(CommFlare.CF.CommunityLeaders) do
+		-- next
+		count = count + 1
+	end
+	print(strformat("%d Community Leaders found.", count))
+end
+
 -- setup report community to list
 function NS.CommunityFlare_Setup_Report_Community_List(info)
 	-- process all
@@ -336,12 +366,10 @@ NS.defaults = {
 		-- profile only options
 		alwaysAutoQueue = false,
 		alwaysReaddChannels = false,
-		autoQueueBrawls = true,
-		autoQueueRandomBgs = true,
-		autoQueueRandomEpicBgs = true,
 		blockGameMenuHotKeys = false,
 		blockSharedQuests = 2,
 		bnetAutoInvite = true,
+		bnetAutoQueue = true,
 		communityAutoAssist = 2,
 		communityAutoInvite = true,
 		communityAutoQueue = true,
@@ -349,10 +377,8 @@ NS.defaults = {
 		communityPartyLeader = false,
 		communityReporter = true,
 		partyLeaderNotify = 2,
+		popupQueueWindow = false,
 		printDebugInfo = false,
-		reportQueueBrawls = true,
-		reportQueueRandomBgs = true,
-		reportQueueRandomEpicBgs = true,
 		uninvitePlayersAFK = 0,
 		warningLeavingBG = 2,
 
@@ -396,7 +422,7 @@ NS.options = {
 					type = "multiselect",
 					order = 2,
 					name = "Other Communities",
-					desc = "Choose the other communities from your subscribed list",
+					desc = "Choose the other communities from your subscribed list.",
 					values = NS.CommunityFlare_Setup_Other_Community_List,
 					disabled = NS.CommunityFlare_Other_Community_List_Disabled,
 					get = NS.CommunityFlare_Other_Community_Get_Item,
@@ -407,10 +433,17 @@ NS.options = {
 					order = 3,
 					name = NS.CommunityFlare_Total_Database_Members,
 				},
+				rebuildMembers = {
+					type = "execute",
+					order = 4,
+					name = "Rebuild Members",
+					desc = "Use this to totally rebuild the Members Database from currently selected Communities.",
+					func = NS.CommunityFlare_Rebuild_Database_Members,
+				},
 				alwaysReaddChannels = {
 					type = "toggle",
-					order = 4,
-					name = "Always remove, then re-add Community Channels to General?",
+					order = 5,
+					name = "Always remove, then re-add Community Channels to General? *EXPERIMENTAL*",
 					desc = "This will automatically delete communities channels from general and re-add them upon login.",
 					width = "full",
 					get = function(info) return CommFlare.db.profile.alwaysReaddChannels end,
@@ -424,23 +457,23 @@ NS.options = {
 			name = "Invite Options",
 			inline = true,
 			args = {
-				communityAutoInvite = {
+				bnetAutoInvite = {
 					type = "toggle",
 					order = 1,
+					name = "Automatically accept invites from Battle.NET friends?",
+					desc = "This will automatically accept group/party invites from Battle.NET friends.",
+					width = "full",
+					get = function(info) return CommFlare.db.profile.bnetAutoInvite end,
+					set = function(info, value) CommFlare.db.profile.bnetAutoInvite = value end,
+				},
+				communityAutoInvite = {
+					type = "toggle",
+					order = 2,
 					name = "Automatically accept invites from Community members?",
 					desc = "This will automatically accept group/party invites from Community members.",
 					width = "full",
 					get = function(info) return CommFlare.db.profile.communityAutoInvite end,
 					set = function(info, value) CommFlare.db.profile.communityAutoInvite = value end,
-				},
-				bnetAutoInvite = {
-					type = "toggle",
-					order = 2,
-					name = "Automatically accept invites from Battle.NET members?",
-					desc = "This will automatically accept group/party invites from Battle.NET members.",
-					width = "full",
-					get = function(info) return CommFlare.db.profile.bnetAutoInvite end,
-					set = function(info, value) CommFlare.db.profile.bnetAutoInvite = value end,
 				},
 			}
 		},
@@ -459,52 +492,36 @@ NS.options = {
 					get = function(info) return CommFlare.db.profile.alwaysAutoQueue end,
 					set = function(info, value) CommFlare.db.profile.alwaysAutoQueue = value end,
 				},
-				communityAutoQueue = {
+				bnetAutoQueue = {
 					type = "toggle",
 					order = 2,
-					name = "Automatically queue only if leader is in Community?",
-					desc = "This will only automatically queue if your group leader is in Community.",
+					name = "Automatically queue if your group leader is your Battle.Net friend?",
+					desc = "This will automatically queue if your group leader is your Battle.Net friend.",
+					width = "full",
+					get = function(info) return CommFlare.db.profile.bnetAutoQueue end,
+					set = function(info, value) CommFlare.db.profile.bnetAutoQueue = value end,
+				},
+				communityAutoQueue = {
+					type = "toggle",
+					order = 3,
+					name = "Automatically queue if your group leader is in Community?",
+					desc = "This will automatically queue if your group leader is in Community.",
 					width = "full",
 					get = function(info) return CommFlare.db.profile.communityAutoQueue end,
 					set = function(info, value) CommFlare.db.profile.communityAutoQueue = value end,
 				},
-				autoqueue = {
-					type = "group",
-					order = 3,
-					name = "Auto Queue Options",
-					args = {
-						autoQueueRandomEpicBgs = {
-							type = "toggle",
-							order = 1,
-							name = "Random Epic Battlegrounds?",
-							desc = "This allows automatic queues for Random Epic Battlegrounds.",
-							width = "full",
-							get = function(info) return CommFlare.db.profile.autoQueueRandomEpicBgs end,
-							set = function(info, value) CommFlare.db.profile.autoQueueRandomEpicBgs = value end,
-						},
-						autoQueueRandomBgs = {
-							type = "toggle",
-							order = 2,
-							name = "Random Battlegrounds?",
-							desc = "This allows automatic queues for Random Battlegrounds.",
-							width = "full",
-							get = function(info) return CommFlare.db.profile.autoQueueRandomBgs end,
-							set = function(info, value) CommFlare.db.profile.autoQueueRandomBgs = value end,
-						},
-						autoQueueBrawls = {
-							type = "toggle",
-							order = 3,
-							name = "Brawls?",
-							desc = "This allows automatic queues for Brawls.",
-							width = "full",
-							get = function(info) return CommFlare.db.profile.autoQueueBrawls end,
-							set = function(info, value) CommFlare.db.profile.autoQueueBrawls = value end,
-						},
-					},
+				popupQueueWindow = {
+					type = "toggle",
+					order = 4,
+					name = "Popup PVP Queue Window upon Leaders queing up? (Only for Group Leaders.)",
+					desc = "This will open up the PVP Queue window if a Leader is queing up for PVP so you can queue up too.",
+					width = "full",
+					get = function(info) return CommFlare.db.profile.popupQueueWindow end,
+					set = function(info, value) CommFlare.db.profile.popupQueueWindow = value end,
 				},
 				communityReporter = {
 					type = "toggle",
-					order = 4,
+					order = 5,
 					name = "Report queues to Main Community? (Requires Community channel to have /# assigned.)",
 					desc = "This will provide a quick popup message for you to send your queue status to the Community chat.",
 					width = "full",
@@ -513,47 +530,13 @@ NS.options = {
 				},
 				communityReportID = {
 					type = "select",
-					order = 5,
+					order = 6,
 					name = "Community To Report To",
 					desc = "Choose the main community from your subscribed list",
 					values = NS.CommunityFlare_Setup_Report_Community_List,
 					disabled = NS.CommunityFlare_Check_ReportID_Disabled,
 					get = function(info) return CommFlare.db.profile.communityReportID end,
 					set = NS.CommunityFlare_Set_ReportID,
-				},
-				reportqueue = {
-					type = "group",
-					order = 6,
-					name = "Report Queue Options",
-					args = {
-						reportQueueRandomEpicBgs = {
-							type = "toggle",
-							order = 1,
-							name = "Random Epic Battlegrounds?",
-							desc = "This allows reporting queues to the Community for Random Epic Battlegrounds.",
-							width = "full",
-							get = function(info) return CommFlare.db.profile.reportQueueRandomEpicBgs end,
-							set = function(info, value) CommFlare.db.profile.reportQueueRandomEpicBgs = value end,
-						},
-						reportQueueRandomBgs = {
-							type = "toggle",
-							order = 2,
-							name = "Random Battlegrounds?",
-							desc = "This allows reporting queues to the Community for Random Battlegrounds.",
-							width = "full",
-							get = function(info) return CommFlare.db.profile.reportQueueRandomBgs end,
-							set = function(info, value) CommFlare.db.profile.reportQueueRandomBgs = value end,
-						},
-						reportQueueBrawls = {
-							type = "toggle",
-							order = 3,
-							name = "Brawls?",
-							desc = "This allows reporting queues to the Community for Brawls.",
-							width = "full",
-							get = function(info) return CommFlare.db.profile.reportQueueBrawls end,
-							set = function(info, value) CommFlare.db.profile.reportQueueBrawls = value end,
-						},
-					},
 				},
 				uninvitePlayersAFK = {
 					type = "select",

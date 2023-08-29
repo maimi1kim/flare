@@ -15,20 +15,23 @@ local GetNumSubgroupMembers                     = _G.GetNumSubgroupMembers
 local GetRealmName                              = _G.GetRealmName
 local IsInGroup                                 = _G.IsInGroup
 local IsInRaid                                  = _G.IsInRaid
-local PvPIsBattleground                         = _G.C_PvP.IsBattleground
+local PromoteToLeader                           = _G.PromoteToLeader
 local SendChatMessage                           = _G.SendChatMessage
 local StaticPopupDialogs                        = _G.StaticPopupDialogs
 local StaticPopup_Show                          = _G.StaticPopup_Show
 local UninviteUnit                              = _G.UninviteUnit
 local UnitFullName                              = _G.UnitFullName
 local UnitGUID                                  = _G.UnitGUID
+local UnitInParty                               = _G.UnitInParty
 local UnitIsGroupLeader                         = _G.UnitIsGroupLeader
 local UnitName                                  = _G.UnitName
 local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
+local PvPIsBattleground                         = _G.C_PvP.IsBattleground
 local TimerAfter                                = _G.C_Timer.After
 local pairs                                     = _G.pairs
 local strformat                                 = _G.string.format
 local strgmatch                                 = _G.string.gmatch
+local strmatch                                  = _G.string.match
 local tinsert                                   = _G.table.insert
 
 -- global function (check if dragon riding available)
@@ -104,6 +107,28 @@ function NS.CommunityFlare_ParseCommand(text)
 		tinsert(table, param)
 	end
 	return table
+end
+
+-- promote player to party leader
+function NS.CommunityFlare_PromoteToPartyLeader(player)
+	-- is player full name in party?
+	if (UnitInParty(player) ~= nil) then
+		PromoteToLeader(player)
+		return true
+	end
+
+	-- try using short name
+	local name, realm = strsplit("-", player, 2)
+	if (realm == GetRealmName()) then
+		player = name
+	end
+
+	-- unit is in party?
+	if (UnitInParty(player) ~= nil) then
+		PromoteToLeader(player)
+		return true
+	end
+	return false
 end
 
 -- load session variables
@@ -244,6 +269,16 @@ function NS.CommunityFlare_IsTank(spec)
 	return false
 end
 
+-- get full player name
+function NS.CommunityFlare_GetFullName(player)
+	-- force name-realm format
+	if (not strmatch(player, "-")) then
+		-- add realm name
+		player = player .. "-" .. GetRealmName()
+	end
+	return player
+end
+
 -- get proper player name by type
 function NS.CommunityFlare_GetPlayerName(type)
 	local name, realm = UnitFullName("player")
@@ -287,6 +322,51 @@ function NS.CommunityFlare_GetPartyLeader()
 
 	-- solo atm
 	return NS.CommunityFlare_GetPlayerName("full")
+end
+
+-- get current party guid
+function NS.CommunityFlare_GetPartyLeaderGUID()
+	-- process all sub group members
+	for i=1, GetNumSubgroupMembers() do 
+		if (UnitIsGroupLeader("party" .. i)) then
+			-- return guid
+			return UnitGUID("party" .. i)
+		end
+	end
+
+	-- solo atm
+	return UnitGUID("player")
+end
+
+-- get party unit
+function NS.CommunityFlare_GetPartyUnit(player)
+	-- force name-realm format
+	if (not strmatch(player, "-")) then
+		-- add realm name
+		player = player .. "-" .. GetRealmName()
+	end
+
+	-- process all group members
+	for i=1, GetNumGroupMembers() do
+		local unit = "party" .. i
+		local name, realm = UnitName(unit)
+		if (name and (name ~= "")) then
+			-- no realm name?
+			if (not realm or (realm == "")) then
+				-- get realm name
+				realm = GetRealmName()
+			end
+
+			-- full name matches?
+			name = name .. "-" .. realm
+			if (player == name) then
+				return unit
+			end
+		end
+	end
+
+	-- failed
+	return nil
 end
 
 -- get total group count
@@ -369,10 +449,11 @@ end
 -- popup box
 function NS.CommunityFlare_PopupBox(dlg, message)
 	-- requires community id?
-	local showPopup = false
+	local showPopup = true
 	if (dlg == "CommunityFlare_Send_Community_Dialog") then
 		-- report ID set?
 		local clubId = 0
+		showPopup = false
 		if (CommFlare.db.profile.communityReportID and (CommFlare.db.profile.communityReportID > 1)) then
 			-- show
 			showPopup = true

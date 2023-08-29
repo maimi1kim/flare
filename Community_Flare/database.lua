@@ -120,18 +120,14 @@ end
 
 -- add community
 function NS.CommunityFlare_AddCommunity(id, info)
-	-- sanity checks?
-	if (not CommFlare.db.global) then
+	-- sanity check?
+	if (not CommFlare.db.profile.communities) then
 		-- initialize
-		CommFlare.db.global = {}
-	end
-	if (not CommFlare.db.global.communities) then
-		-- initialize
-		CommFlare.db.global.communities = {}
+		CommFlare.db.profile.communities = {}
 	end
 
 	-- add to communities
-	CommFlare.db.global.communities[id] = {
+	CommFlare.db.profile.communities[id] = {
 		["avatarId"] = info.avatarId,
 		["clubType"] = info.clubType,
 		["clubId"] = info.clubId,
@@ -142,7 +138,7 @@ function NS.CommunityFlare_AddCommunity(id, info)
 end
 
 -- add member
-function NS.CommunityFlare_AddMember(id, info)
+function NS.CommunityFlare_AddMember(id, info, rebuild)
 	-- build proper name
 	local player = info.name
 	if (not strmatch(player, "-")) then
@@ -191,19 +187,6 @@ function NS.CommunityFlare_AddMember(id, info)
 			["memberNote"] = info.memberNote,
 			["priority"] = NS.CommunityFlare_GetMemberPriority(info),
 		}
-	end
-
-	-- new leader added?
-	local rebuild = false
-	if (CommFlare.db.global.members[player].role == Enum.ClubRoleIdentifier.Leader) then
-		-- rebuild
-		rebuild = true
-	end
-
-	-- has priority?
-	if (CommFlare.db.global.members[player].priority and (CommFlare.db.global.members[player].priority > 0)) then
-		-- rebuild
-		rebuild = true
 	end
 
 	-- rebuild leaders?
@@ -264,7 +247,7 @@ function NS.CommunityFlare_AddAllClubMembersByClubID(clubId)
 			local mi = ClubGetMemberInfo(clubId, v)
 			if ((mi ~= nil) and (mi.name ~= nil)) then
 				-- add member
-				NS.CommunityFlare_AddMember(clubId, mi)
+				NS.CommunityFlare_AddMember(clubId, mi, false)
 
 				-- increase
 				count = count + 1
@@ -345,8 +328,8 @@ end
 
 -- get club id
 function NS.CommunityFlare_FindClubID(name)
-	-- main community?
-	if (CommFlare.db.profile.communityMain == name) then
+	-- main community id already set?
+	if (CommFlare.db.profile.communityMain > 1) then
 		-- return community main
 		return CommFlare.db.profile.communityMain
 	end
@@ -400,30 +383,26 @@ function NS.CommunityFlare_Process_Club_Members()
 
 	-- process clubs
 	for _,clubId in ipairs(clubs) do
-		-- add community
+		-- club type is a community?
 		local info = ClubGetClubInfo(clubId)
-		NS.CommunityFlare_AddCommunity(clubId, info)
+		if (info and (info.clubType == Enum.ClubType.Character)) then
+			-- add community
+			NS.CommunityFlare_AddCommunity(clubId, info)
 
-		-- process all members
-		local members = ClubGetClubMembers(clubId)
-		for _,v in ipairs(members) do
-			local mi = ClubGetMemberInfo(clubId, v)
-			if ((mi ~= nil) and (mi.name ~= nil)) then
-				-- add member
-				NS.CommunityFlare_AddMember(clubId, mi)
+			-- process all members
+			local members = ClubGetClubMembers(clubId)
+			for _,v in ipairs(members) do
+				local mi = ClubGetMemberInfo(clubId, v)
+				if ((mi ~= nil) and (mi.name ~= nil)) then
+					-- add member
+					NS.CommunityFlare_AddMember(clubId, mi, false)
+				end
 			end
 		end
 	end
-	wipe(clubs)
 
-	-- has members?
-	if (CommFlare.db.global.members and (next(CommFlare.db.global.members) ~= nil)) then
-		-- no leaders yet?
-		if (not CommFlare.CF.CommunityLeaders or (next(CommFlare.CF.CommunityLeaders) == nil)) then
-			-- build community leaders
-			NS.CommunityFlare_RebuildCommunityLeaders()
-		end
-	end
+	-- rebuild community leaders
+	NS.CommunityFlare_RebuildCommunityLeaders()
 
 	-- has report ID?
 	if (CommFlare.db.profile.communityReportID > 1) then
@@ -455,7 +434,7 @@ function NS.CommunityFlare_ClubMemberAdded(clubId, memberId)
 					print(strformat("%s: %s (%d, %d) added to Community %s.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId, info.name))
 
 					-- add member
-					NS.CommunityFlare_AddMember(clubId, CommFlare.CF.MemberInfo)
+					NS.CommunityFlare_AddMember(clubId, CommFlare.CF.MemberInfo, true)
 				end
 			end)
 		else
@@ -463,7 +442,7 @@ function NS.CommunityFlare_ClubMemberAdded(clubId, memberId)
 			print(strformat("%s: %s (%d, %d) added to Community %s.", NS.CommunityFlare_Title, CommFlare.CF.MemberInfo.name, clubId, memberId, info.name))
 
 			-- add member
-			NS.CommunityFlare_AddMember(clubId, CommFlare.CF.MemberInfo)
+			NS.CommunityFlare_AddMember(clubId, CommFlare.CF.MemberInfo, true)
 		end
 	end
 end
@@ -670,7 +649,7 @@ function CommunityFlare_FindCommunityMemberByGUID(guid)
 	end
 
 	-- find name / realm
-	local name,realm = select(6, GetPlayerInfoByGUID(guid))
+	local name, realm = select(6, GetPlayerInfoByGUID(guid))
 
 	-- name not found?
 	if (not name or (name == "")) then

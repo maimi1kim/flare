@@ -1,3 +1,14 @@
+v0.30 features:
+-New setting to popup the PVP Queue Window if a Community Leader has just queued up for PVP.
+-New setting to Auto Queue/Ready Check if the party leader is your Battle.NET friend.
+-Removed individual settings to turn on/off Report Queue for Random Battlegrounds, Random Epic Battlegrounds & Brawls.
+-Removed individual settings to turn on/off Auto Queue for Random Battlegrounds, Random Epic Battlegrounds & Brawls.
+-Ready check reports for group leaders who has Community Flare and what version!
+-Added new Button in Addons -> Community Flare -> Rebuild Members.
+-- If you have toons in multiple communities, should run this from your toon that has the MAIN community set as MAIN.
+-BUGFIX: Counts should display properly upon Gates opening inside Battlegrounds for Community members found again.
+-BUGFIX: Check to see if people are Offline or Dead should ask you to Kick those players once again.
+
 v0.29 features:
 -Bugfix: !status reports proper Community Members count before the Gates opened in Epic Battlegrounds now.
 -Should Auto Ready Check & Auto Queue if you have no toons in ALTS and an ALT is your party leader.

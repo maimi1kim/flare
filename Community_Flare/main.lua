@@ -19,6 +19,7 @@ local DevTools_Dump                             = _G.DevTools_Dump
 local GetAddOnCPUUsage                          = _G.GetAddOnCPUUsage
 local GetAddOnMemoryUsage                       = _G.GetAddOnMemoryUsage
 local GetAddOnMetadata                          = _G.C_AddOns and _G.C_AddOns.GetAddOnMetadata or _G.GetAddOnMetadata
+local GetBattlefieldEstimatedWaitTime           = _G.GetBattlefieldEstimatedWaitTime
 local GetBattlefieldPortExpiration              = _G.GetBattlefieldPortExpiration
 local GetBattlefieldStatus                      = _G.GetBattlefieldStatus
 local GetBattlefieldTimeWaited                  = _G.GetBattlefieldTimeWaited
@@ -32,12 +33,14 @@ local GetMaxBattlefieldID                       = _G.GetMaxBattlefieldID
 local GetNextPendingInviteConfirmation          = _G.GetNextPendingInviteConfirmation
 local GetNumGroupMembers                        = _G.GetNumGroupMembers
 local GetNumSubgroupMembers                     = _G.GetNumSubgroupMembers
+local GetPlayerInfoByGUID                       = _G.GetPlayerInfoByGUID
 local GetQuestID                                = _G.GetQuestID
 local GetRealmName                              = _G.GetRealmName
 local HideUIPanel                               = _G.HideUIPanel
 local InCombatLockdown                          = _G.InCombatLockdown
 local IsInGroup                                 = _G.IsInGroup
 local IsInRaid                                  = _G.IsInRaid
+local RaidWarningFrame_OnEvent                  = _G.RaidWarningFrame_OnEvent
 local RespondToInviteConfirmation               = _G.RespondToInviteConfirmation
 local SettingsPanel                             = _G.SettingsPanel
 local SocialQueueUtil_GetRelationshipInfo       = _G.SocialQueueUtil_GetRelationshipInfo
@@ -64,6 +67,9 @@ local PvPGetActiveMatchState                    = _G.C_PvP.GetActiveMatchState
 local PvPGetActiveMatchDuration                 = _G.C_PvP.GetActiveMatchDuration
 local PvPIsArena                                = _G.C_PvP.IsArena
 local PvPIsBattleground                         = _G.C_PvP.IsBattleground
+local SocialQueueGetGroupInfo                   = _G.C_SocialQueue.GetGroupInfo
+local SocialQueueGetGroupMembers                = _G.C_SocialQueue.GetGroupMembers
+local SocialQueueGetGroupQueues                 = _G.C_SocialQueue.GetGroupQueues
 local TimerAfter                                = _G.C_Timer.After
 local Settings_OpenToCategory                   = _G.Settings.OpenToCategory
 local hooksecurefunc                            = _G.hooksecurefunc
@@ -92,7 +98,7 @@ CommFlare.CF = {
 	AutoPromote = false,
 	AutoQueue = false,
 	AutoQueueable = false,
-	EventHandlerLoaded = false,
+	Disabled = false,
 	HasAura = false,
 	Reloaded = false,
 
@@ -135,11 +141,13 @@ CommFlare.CF = {
 	MapInfo = {},
 	MemberInfo = {},
 	MercNamesList = {},
+	PartyVersions = {},
 	PlayerInfo = {},
 	POIInfo = {},
 	Queues = {},
 	ReadyCheck = {},
 	RoleChosen = {},
+	SocialQueues = {},
 	StatusCheck = {},
 	WidgetInfo = {},
 
@@ -208,79 +216,43 @@ local function CommunityFlare_AcceptBattlefieldPort(index, acceptFlag)
 	local status, mapName = GetBattlefieldStatus(index)
 	local isTracked, isEpicBattleground, isRandomBattleground, isBrawl = NS.CommunityFlare_IsTrackedPVP(mapName)
 	if (isTracked == true) then
-		-- leaving queue?
-		if (acceptFlag == false) then
-			-- community reporter enabled?
-			local text = NS.CommunityFlare_GetGroupCount()
-			if (CommFlare.db.profile.communityReporter == true) then
-				-- only report drops for group leaders
-				if (NS.CommunityFlare_IsGroupLeader() == true) then
-					-- is epic battleground?
-					local shouldReport = false
-					if (isEpicBattleground == true) then
-						-- report random epic battlegrounds option enabled?
-						if (CommFlare.db.profile.reportQueueRandomEpicBgs == true) then
-							shouldReport = true
-						end
-					-- is random battleground?
-					elseif (isRandomBattleground == true) then
-						-- report random battlegrounds option enabled?
-						if (CommFlare.db.profile.reportQueueRandomBgs == true) then
-							shouldReport = true
-						end
-					-- is brawl?
-					elseif (isBrawl == true) then
-						-- report brawls option enabled?
-						if (CommFlare.db.profile.reportQueueBrawls == true) then
-							shouldReport = true
-						end
-					end
+		-- confirm?
+		if (status == "confirm") then
+			-- has queue popped?
+			if (CommFlare.CF.Queues[index] and CommFlare.CF.Queues[index].popped and (CommFlare.CF.Queues[index].popped > 0)) then
+				-- mercenary?
+				local text = ""
+				local mercenary = ""
+				if (CommFlare.CF.Queues[index].mercenary == true) then
+					mercenary = "Mercenary "
+				end
 
-					-- should report?
-					if (shouldReport == true) then
-						-- leaving popped queue?
-						if (GetBattlefieldPortExpiration(index) > 0) then
-							-- mercenary?
-							if (CommFlare.CF.Queues[index].mercenary == true) then
-								text = "Left Mercenary Queue for Popped " .. mapName .. "!"
-							else
-								text = "Left Queue for Popped " .. mapName .. "!"
-							end
-						else
-							-- mercenary?
-							if (CommFlare.CF.Queues[index].mercenary == true) then
-								text = text .. " Dropped Mercenary Queue for " .. mapName .. "!"
-							else
-								text = text .. " Dropped Queue for " .. mapName .. "!"
-							end
-						end
+				-- accepted queue?
+				if (acceptFlag == true) then
+					-- entered
+					text = "Entered " .. mercenary .. "Queue for Popped " .. mapName .. "!"
+				else
+					-- left
+					text = "Left " .. mercenary .. "Queue for Popped " .. mapName .. "!"
 
+					-- community reporter enabled?
+					if (CommFlare.db.profile.communityReporter == true) then
 						-- send to community?
 						NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
 					end
 				end
-			end
 
-			-- are you in a party?
-			if (IsInGroup() and not IsInRaid()) then
-				-- leaving popped queue?
-				if (GetBattlefieldPortExpiration(index) > 0) then 
-					-- mercenary?
-					if (CommFlare.CF.Queues[index].mercenary == true) then
-						text = "Left Mercenary Queue for Popped " .. mapName .. "!"
-					else
-						text = "Left Queue for Popped " .. mapName .. "!"
-					end
-
+				-- are you in a party?
+				if (IsInGroup() and not IsInRaid()) then
 					-- send to party chat
 					NS.CommunityFlare_SendMessage(nil, text)
 				end
+
+				-- clear queue
+				CommFlare.CF.Queues[index] = nil
 			end
 		end
 	end
-
-	-- clear queue
-	CommFlare.CF.Queues[index] = {}
 end
 
 -- securely hook honor frame queue queue button hover
@@ -326,43 +298,6 @@ local function CommunityFlare_HonorFrameQueueButton_OnEnter(self)
 				if (NS.CommunityFlare_IsGroupLeader() == true) then
 					-- ask to kick?
 					NS.CommunityFlare_PopupBox("CommunityFlare_Kick_Dialog", player)
-				end
-			end
-		end
-	end
-end
-
--- securely hook pvp ready dialog hide
-local function CommunityFlare_PVPReadyDialog_OnHide(self)
-	-- process all queues
-	for i,v in ipairs(CommFlare.CF.Queues) do
-		-- valid queue?
-		if (CommFlare.CF.Queues[i] and (CommFlare.CF.Queues[i].popped ~= nil) and CommFlare.CF.Queues[i].popped > 0) then
-			-- check expiration and time waited
-			CommFlare.CF.Expiration = GetBattlefieldPortExpiration(i)
-			CommFlare.CF.Timer.MilliSeconds = GetBattlefieldTimeWaited(i)
-			if ((CommFlare.CF.Expiration == 0) and (CommFlare.CF.Timer.MilliSeconds == 0)) then
-				-- mercenary?
-				local text = ""
-				if (CommFlare.CF.Queues[i].mercenary == true) then
-					text = "Missed Mercenary Queue for " .. CommFlare.CF.Queues[i].name .. "!"
-				else
-					text = "Missed Queue for " .. CommFlare.CF.Queues[i].name .. "!"
-				end
-
-				-- clear queue
-				CommFlare.CF.Queues[i] = {}
-
-				-- are you in a party?
-				if (IsInGroup() and not IsInRaid()) then
-					-- send message to party that you've missed the queue
-					NS.CommunityFlare_SendMessage(nil, text)
-				end
-
-				-- community reporter enabled?
-				if (CommFlare.db.profile.communityReporter == true) then
-					-- send to community?
-					NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
 				end
 			end
 		end
@@ -572,7 +507,6 @@ end
 local function CommunityFlare_SetupHooks()
 	-- hook stuff
 	hooksecurefunc("AcceptBattlefieldPort", CommunityFlare_AcceptBattlefieldPort)
-	PVPReadyDialog:HookScript("OnHide", CommunityFlare_PVPReadyDialog_OnHide)
 
 	-- hooks for blocking character frame hotkeys inside a battleground
 	CommFlare.CF.AllowCharacterFrame = false
@@ -584,11 +518,13 @@ local function CommunityFlare_SetupHooks()
 	CommFlare.CF.AllowCollectionsJournal = false
 	CollectionsMicroButton:HookScript("OnMouseDown", CollectionsMicroButton_OnMouseDown)
 
-	-- huh?
-	if (CollectionsJournal ~= nil) then
-		CollectionsJournal:HookScript("OnShow", CollectionsJournal_OnShow)
-		CollectionsJournal:HookScript("OnHide", CollectionsJournal_OnHide)
+	-- collections journal not loaded yet?
+	if (not CollectionsJournal) then
+		-- load collections journal
+		CollectionsJournal_LoadUI()
 	end
+	CollectionsJournal:HookScript("OnShow", CollectionsJournal_OnShow)
+	CollectionsJournal:HookScript("OnHide", CollectionsJournal_OnHide)
 
 	-- hooks for blocking escape key inside a battleground
 	CommFlare.CF.AllowMainMenu = false
@@ -700,6 +636,24 @@ function CommFlare:Community_Flare_OnCommReceived(prefix, message, distribution,
 						CommFlare.db.profile.communityPartyLeader = true
 					end
 				end
+			-- ready check?
+			elseif (message:find("READY_CHECK")) then
+				-- reply?
+				if (message:find("READY_CHECK:")) then
+					-- get unit for sender
+					local unit = NS.CommunityFlare_GetPartyUnit(sender)
+					local player = NS.CommunityFlare_GetFullName(sender)
+					if (unit and player) then
+						-- save / display version
+						local left, right = strsplit(':', message)
+						CommFlare.CF.PartyVersions[unit] = right
+						print(player .. " has Community Flare " .. right)
+					end
+				else
+					-- send back community flare version
+					local message = "READY_CHECK:" .. NS.CommunityFlare_Version
+					CommFlare:SendCommMessage("Community_Flare", message, "PARTY")
+				end
 			end
 		end
 	end
@@ -741,6 +695,7 @@ function CommFlare:CHAT_MSG_BN_WHISPER(msg, ...)
 		if (CommFlare.db.profile.bnetAutoInvite == true) then
 			-- inside battleground?
 			if (PvPIsBattleground() == true) then
+				-- can not invite while in a battleground
 				NS.CommunityFlare_SendMessage(bnSenderID, "Sorry, currently in a Battleground now.")
 			else
 				-- get bnet friend index
@@ -754,15 +709,24 @@ function CommFlare:CHAT_MSG_BN_WHISPER(msg, ...)
 						if (accountInfo.playerGuid) then
 							-- party is full?
 							if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
-								-- send Battle.Net message
+								-- force to max
+								CommFlare.CF.Count = 5
+
+								-- group full
 								NS.CommunityFlare_SendMessage(bnSenderID, "Sorry, group is currently full.")
 							else
-								-- get invite type
-								local inviteType = GetDisplayedInviteType(accountInfo.playerGuid)
-								if ((inviteType == "INVITE") or (inviteType == "SUGGEST_INVITE")) then
-									BNInviteFriend(accountInfo.gameAccountID)
-								elseif (inviteType == "REQUEST_INVITE") then
-									BNRequestInviteFriend(accountInfo.gameAccountID)
+								-- really has room?
+								if (CommFlare.CF.Count < 5) then
+									-- increase
+									CommFlare.CF.Count = CommFlare.CF.Count + 1
+
+									-- get invite type
+									local inviteType = GetDisplayedInviteType(accountInfo.playerGuid)
+									if ((inviteType == "INVITE") or (inviteType == "SUGGEST_INVITE")) then
+										BNInviteFriend(accountInfo.gameAccountID)
+									elseif (inviteType == "REQUEST_INVITE") then
+										BNRequestInviteFriend(accountInfo.gameAccountID)
+									end
 								end
 							end
 							break
@@ -809,7 +773,7 @@ function CommFlare:CHAT_MSG_SYSTEM(msg, ...)
 				end
 
 				-- promote this leader
-				if (NS.CommunityFlare_Battleground_PromoteToLeader(v) == true) then
+				if (NS.CommunityFlare_PromoteToRaidLeader(v) == true) then
 					-- success
 					break
 				end
@@ -828,59 +792,78 @@ end
 function CommFlare:CHAT_MSG_WHISPER(msg, ...)
 	local text, sender, _, _, _, _, _, _, _, _, _, guid, bnSenderID = ...
 
-	-- internal command?
-	if (text:find("!CF@")) then
-		-- parse command
-		local params = NS.CommunityFlare_ParseCommand(text)
-		print("Author: ", author)
-		DevTools_Dump(params)
-	else
-		-- version check?
-		text = strlower(text)
-		if (text == "!cf") then
-			-- send community flare version number
-			NS.CommunityFlare_SendMessage(sender, strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
-		-- pass leadership?
-		elseif (text == "!pl") then
-			-- not community leader?
+	-- version check?
+	text = strlower(text)
+	if (text == "!cf") then
+		-- send community flare version number
+		NS.CommunityFlare_SendMessage(sender, strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
+	-- pass leadership?
+	elseif (text == "!pl") then
+		-- inside battleground?
+		if (PvPIsBattleground() == true) then
+			-- player is community leader?
 			local player = NS.CommunityFlare_GetPlayerName("full")
 			if (CommunityFlare_IsCommunityLeader(player) == false) then
-				-- do you have lead?
+				-- does player have raid leadership?
 				CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
 				if (CommFlare.CF.PlayerRank == 2) then
-					-- community leader?
+					-- sender is community leader?
 					if (CommunityFlare_IsCommunityLeader(sender) == true) then
-						NS.CommunityFlare_Battleground_PromoteToLeader(sender)
+						NS.CommunityFlare_PromoteToRaidLeader(sender)
 					end
 				end
 			end
-		-- status check?
-		elseif (text == "!status") then
-			-- process status check
-			NS.CommunityFlare_Process_Status_Check(sender)
-		-- asking for invite?
-		elseif ((text == "inv") or (text == "invite")) then
-			-- community auto invite enabled?
-			if (CommFlare.db.profile.communityAutoInvite == true) then
-				-- inside battleground?
-				if (PvPIsBattleground() == true) then
-					NS.CommunityFlare_SendMessage(sender, "Sorry, currently in a Battleground now.")
-				else
-					-- is sender a community member?
-					CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(sender)
-					if (CommFlare.CF.AutoInvite == true) then
-						-- group is full?
-						if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
-							NS.CommunityFlare_SendMessage(sender, "Sorry, group is currently full.")
-						else
+		else
+			-- not sending to yourself?
+			local player = NS.CommunityFlare_GetPlayerName("full")
+			if (player ~= sender) then
+				-- player is not community leader?
+				if (CommunityFlare_IsCommunityLeader(player) ~= true) then
+					-- sender is community leader?
+					if (CommunityFlare_IsCommunityLeader(sender) == true) then
+						NS.CommunityFlare_PromoteToPartyLeader(sender)
+					end
+				end
+			end
+		end
+	-- status check?
+	elseif (text == "!status") then
+		-- process status check
+		NS.CommunityFlare_Process_Status_Check(sender)
+	-- asking for invite?
+	elseif ((text == "inv") or (text == "invite")) then
+		-- community auto invite enabled?
+		if (CommFlare.db.profile.communityAutoInvite == true) then
+			-- inside battleground?
+			if (PvPIsBattleground() == true) then
+				-- can not invite while in a battleground
+				NS.CommunityFlare_SendMessage(sender, "Sorry, currently in a Battleground now.")
+			else
+				-- is sender a community member?
+				CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(sender)
+				if (CommFlare.CF.AutoInvite == true) then
+					-- group is full?
+					if ((GetNumGroupMembers() > 4) or PartyInfoIsPartyFull()) then
+						-- force to max
+						CommFlare.CF.Count = 5
+
+						-- group full
+						NS.CommunityFlare_SendMessage(sender, "Sorry, group is currently full.")
+					else
+						-- really has room?
+						if (CommFlare.CF.Count < 5) then
+							-- increase
+							CommFlare.CF.Count = CommFlare.CF.Count + 1
+
+							-- invite the user
 							PartyInfoInviteUnit(sender)
 						end
 					end
 				end
-			else
-				-- auto invite not enabled
-				NS.CommunityFlare_SendMessage(sender, "Sorry, community auto invite not enabled.")
 			end
+		else
+			-- auto invite not enabled
+			NS.CommunityFlare_SendMessage(sender, "Sorry, community auto invite not enabled.")
 		end
 	end
 end
@@ -947,7 +930,6 @@ function CommFlare:GROUP_INVITE_CONFIRMATION(msg)
 	if (autoInvite == true) then
 		-- read the text
 		local text = StaticPopup1Text["text_arg1"]
-		print("text: ", text)
 		if (text and (text ~= "")) then
 			-- has requested to join your group?
 			text = strlower(text)
@@ -995,31 +977,30 @@ function CommFlare:GROUP_INVITE_CONFIRMATION(msg)
 						end
 
 						-- battle net friend?
+						CommFlare.CF.AutoInvite = false
 						if (selfRelationship == "bnfriend") then
 							-- battle net auto invite enabled?
 							if (CommFlare.db.profile.bnetAutoInvite == true) then
-								-- accept invite
-								RespondToInviteConfirmation(invite, true)
-
-								-- hide popup
-								if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
-									-- hide
-									StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
-								end
+								-- auto invite enabled
+								CommFlare.CF.AutoInvite = true
 							end
+						end
+
 						-- community auto invite enabled?
-						elseif (CommFlare.db.profile.communityAutoInvite == true) then
+						if ((CommFlare.CF.AutoInvite == false) and (CommFlare.db.profile.communityAutoInvite == true)) then
 							-- is sender a community member?
 							CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(player)
-							if (CommFlare.CF.AutoInvite == true) then
-								-- accept invite
-								RespondToInviteConfirmation(invite, true)
+						end
 
-								-- hide popup
-								if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
-									-- hide
-									StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
-								end
+						-- auto invite?
+						if (CommFlare.CF.AutoInvite == true) then
+							-- accept invite
+							RespondToInviteConfirmation(invite, true)
+
+							-- hide popup
+							if (StaticPopup_FindVisible("GROUP_INVITE_CONFIRMATION")) then
+								-- hide
+								StaticPopup_Hide("GROUP_INVITE_CONFIRMATION")
 							end
 						end
 					end
@@ -1060,6 +1041,14 @@ end
 
 -- process group roster update
 function CommFlare:GROUP_ROSTER_UPDATE(msg)
+	-- in pvp content?
+	local isArena = PvPIsArena()
+	local isBattleground = PvPIsBattleground()
+	if ((isArena == true) or (isBattleground == true)) then
+		-- finished
+		return
+	end
+
 	-- party leader?
 	local leader = NS.CommunityFlare_GetPartyLeader()
 	local player = NS.CommunityFlare_GetPlayerName("full")
@@ -1082,31 +1071,33 @@ function CommFlare:GROUP_ROSTER_UPDATE(msg)
 	if (not IsInRaid() and IsInGroup()) then
 		-- are you group leader?
 		if (NS.CommunityFlare_IsGroupLeader() == true) then
-			-- community reporter enabled?
-			if (CommFlare.db.profile.communityReporter == true) then
-				-- check current players in home party
-				local count = 1
-				local players = GetHomePartyInfo()
-				if (players ~= nil) then
-					-- has group size changed?
-					local text = NS.CommunityFlare_GetGroupCount()
-					count = #players + count
-					if ((CommFlare.CF.PreviousCount > 0) and (CommFlare.CF.PreviousCount < 5) and (count == 5)) then
+			-- check current players in home party
+			local count = 1
+			local players = GetHomePartyInfo()
+			if (players ~= nil) then
+				-- has group size changed?
+				local text = NS.CommunityFlare_GetGroupCount()
+				count = #players + count
+				if ((CommFlare.CF.PreviousCount > 0) and (CommFlare.CF.PreviousCount < 5) and (count == 5)) then
+					-- community reporter enabled?
+					if (CommFlare.db.profile.communityReporter == true) then
 						-- send to community?
 						text = text .. " Full Now!"
 						NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
 					end
 				end
-
-				-- save previous count
-				CommFlare.CF.PreviousCount = count
-				return
 			end
-		end
-	end
 
-	-- clear previous count
-	CommFlare.CF.PreviousCount = 0
+			-- save previous count
+			CommFlare.CF.PreviousCount = count
+		else
+			-- clear previous count
+			CommFlare.CF.PreviousCount = 0
+		end
+	else
+		-- clear previous count
+		CommFlare.CF.PreviousCount = 0
+	end
 end
 
 -- process initial clubs loaded
@@ -1165,83 +1156,64 @@ function CommFlare:LFG_ROLE_CHECK_SHOW(msg, ...)
 		local mapName = GetLFGRoleUpdateBattlegroundInfo()
 		local isTracked, isEpicBattleground, isRandomBattleground, isBrawl = NS.CommunityFlare_IsTrackedPVP(mapName)
 		if (isTracked == true) then
-			-- is epic battleground?
+			-- capable of auto queuing?
 			CommFlare.CF.AutoQueueable = false
-			if (isEpicBattleground == true) then
-				-- auto queue option enabled?
-				if (CommFlare.db.profile.autoQueueRandomEpicBgs == true) then
-					-- wants to auto queue
+			if (not IsInRaid()) then
+				CommFlare.CF.AutoQueueable = true
+			else
+				-- larger than rated battleground count?
+				if (GetNumGroupMembers() > 10) then
 					CommFlare.CF.AutoQueueable = true
-				end
-			-- is random battleground?
-			elseif (isRandomBattleground == true) then
-				-- auto queue option enabled?
-				if (CommFlare.db.profile.autoQueueRandomBgs == true) then
-					-- wants to auto queue
-					CommFlare.CF.AutoQueueable = true
-				end
-			-- is brawl?
-			elseif (isBrawl == true) then
-				-- auto queue option enabled?
-				if (CommFlare.db.profile.autoQueueBrawls == true) then
-					-- wants to auto queue
-					CommFlare.CF.AutoQueable = true
 				end
 			end
 
-			-- party leader is community?
-			if (CommFlare.db.profile.communityPartyLeader == true) then
-				-- wants to auto queue
-				CommFlare.CF.AutoQueable = true
-			end
-
-			-- is auto queue allowed?
+			-- auto queueable?
+			CommFlare.CF.AutoQueue = false
 			if (CommFlare.CF.AutoQueueable == true) then
-				-- capable of auto queuing?
-				CommFlare.CF.AutoQueueable = false
-				if (not IsInRaid()) then
-					CommFlare.CF.AutoQueueable = true
+				-- party leader is community?
+				if (CommFlare.db.profile.communityPartyLeader == true) then
+					-- auto queue enabled
+					CommFlare.CF.AutoQueue = true
+				end
+
+				-- always auto queue?
+				if ((CommFlare.CF.AutoQueue == false) and (CommFlare.db.profile.alwaysAutoQueue == true)) then
+					-- auto queue enabled
+					CommFlare.CF.AutoQueue = true
+				end
+
+				-- battle net auto queue enabled?
+				if ((CommFlare.CF.AutoQueue == false) and (CommFlare.db.profile.bnetAutoQueue == true)) then
+					local guid = NS.CommunityFlare_GetPartyLeaderGUID()
+					local info = BattleNetGetAccountInfoByGUID(guid)
+					if (info and (info.isFriend == true)) then
+						-- auto invite enabled
+						CommFlare.CF.AutoQueue = true
+					end
+				end
+
+				-- community auto queue?
+				if ((CommFlare.CF.AutoQueue == false) and (CommFlare.db.profile.communityAutoQueue == true)) then
+					-- is party leader a community member?
+					local leader = NS.CommunityFlare_GetPartyLeader()
+					CommFlare.CF.AutoQueue = CommunityFlare_IsCommunityMember(leader)
+				end
+			end
+
+			-- auto queue enabled?
+			if (CommFlare.CF.AutoQueue == true) then
+				-- check for deserter
+				NS.CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
+				if (CommFlare.CF.HasAura == false) then
+					-- is shown?
+					if (LFDRoleCheckPopupAcceptButton:IsShown()) then
+						-- click accept button
+						LFDRoleCheckPopupAcceptButton:Click()
+					end
 				else
-					-- larger than rated battleground count?
-					if (GetNumGroupMembers() > 10) then
-						CommFlare.CF.AutoQueueable = true
-					end
-				end
-
-				-- auto queueable?
-				CommFlare.CF.AutoQueue = false
-				if (CommFlare.CF.AutoQueueable == true) then
-					-- party leader is community?
-					if (CommFlare.db.profile.communityPartyLeader == true) then
-						-- auto queue enabled
-						CommFlare.CF.AutoQueue = true
-					-- always auto queue?
-					elseif (CommFlare.db.profile.alwaysAutoQueue == true) then
-						-- auto queue enabled
-						CommFlare.CF.AutoQueue = true
-					-- community auto queue?
-					elseif (CommFlare.db.profile.communityAutoQueue == true) then
-						-- is party leader a community member?
-						local leader = NS.CommunityFlare_GetPartyLeader()
-						CommFlare.CF.AutoQueue = CommunityFlare_IsCommunityMember(leader)
-					end
-				end
-
-				-- auto queue enabled?
-				if (CommFlare.CF.AutoQueue == true) then
-					-- check for deserter
-					NS.CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
-					if (CommFlare.CF.HasAura == false) then
-						-- is shown?
-						if (LFDRoleCheckPopupAcceptButton:IsShown()) then
-							-- click accept button
-							LFDRoleCheckPopupAcceptButton:Click()
-						end
-					else
-						-- have deserter / leave party
-						NS.CommunityFlare_SendMessage(nil, "Sorry, I currently have Deserter! Leaving party to avoid interrupting the queue!")
-						PartyInfoLeaveParty()
-					end
+					-- have deserter / leave party
+					NS.CommunityFlare_SendMessage(nil, "Sorry, I currently have Deserter! Leaving party to avoid interrupting the queue!")
+					PartyInfoLeaveParty()
 				end
 			end
 		end
@@ -1263,36 +1235,20 @@ function CommFlare:PARTY_INVITE_REQUEST(msg, ...)
 	-- verify player does not have deserter debuff
 	NS.CommunityFlare_CheckForAura("player", "HARMFUL", "Deserter")
 	if (CommFlare.CF.HasAura == false) then
-		-- community auto invite enabled?
-		if (CommFlare.db.profile.communityAutoInvite == true) then
-			-- is sender a community member?
-			CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(sender)
-			if (CommFlare.CF.AutoInvite == true) then
-				-- lfg invite popup shown?
-				if (LFGInvitePopup:IsShown()) then
-					-- click accept button
-					LFGInvitePopupAcceptButton:Click()
-				-- static popup shown?
-				elseif (StaticPopup_FindVisible("PARTY_INVITE")) then
-					-- accept party
-					AcceptGroup()
-
-					-- hide
-					StaticPopup_Hide("PARTY_INVITE")
-				end
+		-- battle net auto invite enabled?
+		CommFlare.CF.AutoInvite = false
+		if (CommFlare.db.profile.bnetAutoInvite == true) then
+			local info = BattleNetGetAccountInfoByGUID(guid)
+			if (info and (info.isFriend == true)) then
+				-- auto invite enabled
+				CommFlare.CF.AutoInvite = true
 			end
 		end
 
-		-- not enabled?
-		if (CommFlare.CF.AutoInvite == false) then
-			-- battle net auto invite enabled?
-			if (CommFlare.db.profile.bnetAutoInvite == true) then
-				local info = BattleNetGetAccountInfoByGUID(guid)
-				if (info and (info.isFriend == true)) then
-					-- auto invite enabled
-					CommFlare.CF.AutoInvite = true
-				end
-			end
+		-- community auto invite enabled?
+		if ((CommFlare.CF.AutoInvite == false) and (CommFlare.db.profile.communityAutoInvite == true)) then
+			-- is sender a community member?
+			CommFlare.CF.AutoInvite = CommunityFlare_IsCommunityMember(sender)
 		end
 
 		-- should auto invite?
@@ -1345,16 +1301,15 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 	local isInitialLogin, isReloadingUi = ...
 	if ((isInitialLogin) or (isReloadingUi)) then
 		-- display version
+		local version, subversion = strsplit('-', NS.CommunityFlare_Version)
+		local major, minor = strsplit('.', version)
 		print(strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
 
-		-- global created?
-		if (not CommFlare.db.global) then
-			CommFlare.db.global = {}
-		end
-
-		-- load / initialize communities + members
-		CommFlare.db.global.communities = CommFlare.db.global.communities or {}
+		-- load / initialize stuff
+		CommFlare.db.global = CommFlare.db.global or {}
 		CommFlare.db.global.members = CommFlare.db.global.members or {}
+		CommFlare.db.profile.communities = CommFlare.db.profile.communities or {}
+		CommFlare.db.profile.communityList = CommFlare.db.profile.communityList or {}
 
 		-- add chat whisper filtering
 		ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", CommunityFlare_Chat_Whisper_Filter)
@@ -1364,6 +1319,9 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 			-- set default report ID
 			CommFlare.db.profile.communityReportID = CommFlare.db.profile.communityMain
 		end
+
+		-- process queue stuff
+		CommunityFlare_SetupHooks()
 
 		-- reloading?
 		if (isReloadingUi) then
@@ -1396,16 +1354,6 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 			-- disable community party leader
 			CommFlare.db.profile.communityPartyLeader = false
 		end
-	end
-end
-
--- process player login
-function CommFlare:PLAYER_LOGIN(msg)
-	-- event hooks not enabled yet?
-	if (CommFlare.CF.EventHandlerLoaded == false) then
-		-- process queue stuff
-		CommunityFlare_SetupHooks()
-		CommFlare.CF.EventHandlerLoaded = true
 	end
 end
 
@@ -1487,7 +1435,7 @@ function CommFlare:PVP_MATCH_COMPLETE(msg, ...)
 	end
 
 	-- clear
-	CommFlare.CF.StatusCheck = {}
+	CommFlare.CF.StatusCheck = nil
 end
 
 -- process pvp match inactive
@@ -1616,20 +1564,14 @@ function CommFlare:READY_CHECK(msg, ...)
 
 	-- initialize partyX to false if you are leader
 	CommFlare.CF.ReadyCheck = {}
+	CommFlare.CF.PartyVersions = {}
 	if (NS.CommunityFlare_IsGroupLeader() == true) then
 		-- are you grouped?
 		if (IsInGroup()) then
 			-- are you in a raid?
 			if (not IsInRaid()) then
-				-- process all group members
-				for i=1, GetNumGroupMembers() do
-					local unit = "party" .. i
-					local name, realm = UnitName(unit)
-					if (name and (name ~= "")) then
-						-- not ready
-						CommFlare.CF.ReadyCheck[unit] = false
-					end
-				end
+				-- send ready check message
+				CommFlare:SendCommMessage("Community_Flare", "READY_CHECK", "PARTY")
 			end
 		end
 	end
@@ -1654,11 +1596,30 @@ function CommFlare:READY_CHECK(msg, ...)
 	-- auto queueable?
 	CommFlare.CF.AutoQueue = false
 	if (CommFlare.CF.AutoQueueable == true) then
-		-- always auto queue?
-		if (CommFlare.db.profile.alwaysAutoQueue == true) then
+		-- party leader is community?
+		if (CommFlare.db.profile.communityPartyLeader == true) then
+			-- auto queue enabled
 			CommFlare.CF.AutoQueue = true
+		end
+
+		-- always auto queue?
+		if ((CommFlare.CF.AutoQueue == false) and (CommFlare.db.profile.alwaysAutoQueue == true)) then
+			-- auto queue enabled
+			CommFlare.CF.AutoQueue = true
+		end
+
+		-- battle net auto queue enabled?
+		if ((CommFlare.CF.AutoQueue == false) and (CommFlare.db.profile.bnetAutoQueue == true)) then
+			local guid = NS.CommunityFlare_GetPartyLeaderGUID()
+			local info = BattleNetGetAccountInfoByGUID(guid)
+			if (info and (info.isFriend == true)) then
+				-- auto queue enabled
+				CommFlare.CF.AutoQueue = true
+			end
+		end
+
 		-- community auto queue?
-		elseif (CommFlare.db.profile.communityAutoQueue == true) then
+		if ((CommFlare.CF.AutoQueue == false) and (CommFlare.db.profile.communityAutoQueue == true)) then
 			-- is sender a community member?
 			CommFlare.CF.AutoQueue = CommunityFlare_IsCommunityMember(sender)
 		end
@@ -1676,6 +1637,7 @@ function CommFlare:READY_CHECK(msg, ...)
 
 			-- ready
 			CommFlare.CF.ReadyCheck["player"] = true
+			CommFlare.CF.PartyVersions["player"] = NS.CommunityFlare_Version
 		else
 			-- send back to party that you have deserter
 			NS.CommunityFlare_SendMessage(nil, "Sorry, I currently have Deserter!")
@@ -1686,6 +1648,7 @@ function CommFlare:READY_CHECK(msg, ...)
 
 			-- not ready
 			CommFlare.CF.ReadyCheck["player"] = false
+			CommFlare.CF.PartyVersions["player"] = NS.CommunityFlare_Version
 		end
 	end
 end
@@ -1755,6 +1718,27 @@ function CommFlare:READY_CHECK_FINISHED(msg, ...)
 	CommFlare.CF.ReadyCheck = {}
 end
 
+-- process social queue update
+function CommFlare:SOCIAL_QUEUE_UPDATE(msg, ...)
+	local groupGUID, numAddedItems = ...
+
+	-- valid update?
+	if (groupGUID and numAddedItems) then
+		-- leader found?
+		local canJoin, numQueues, needTank, needHealer, needDamage, isSoloQueueParty, questSessionActive, leaderGUID = SocialQueueGetGroupInfo(groupGUID)
+		if (leaderGUID) then
+			-- update group
+			NS.CommunityFlare_Update_Group(groupGUID, canJoin, numQueues, leaderGUID)
+		else
+			-- clear queue
+			CommFlare.CF.SocialQueues[groupGUID] = nil
+		end
+	else
+		-- clear queue
+		CommFlare.CF.SocialQueues[groupGUID] = nil
+	end
+end
+
 -- process ui info message
 function CommFlare:UI_INFO_MESSAGE(msg, ...)
 	local type, text = ...
@@ -1806,8 +1790,14 @@ function CommFlare:UPDATE_BATTLEFIELD_STATUS(msg, ...)
 		return
 	end
 
-	-- is tracked pvp?
+	-- queue left or missed?
 	local status, mapName = GetBattlefieldStatus(index)
+	if ((status == "none") and CommFlare.CF.Queues[index] and CommFlare.CF.Queues[index].name and (CommFlare.CF.Queues[index].name ~= "")) then
+		-- update map name
+		mapName = CommFlare.CF.Queues[index].name
+	end
+
+	-- is tracked pvp?
 	local isTracked, isEpicBattleground, isRandomBattleground, isBrawl = NS.CommunityFlare_IsTrackedPVP(mapName)
 	if (isTracked == true) then
 		-- queued?
@@ -1831,7 +1821,7 @@ function CommFlare:UPDATE_BATTLEFIELD_STATUS(msg, ...)
 						if (NS.CommunityFlare_IsGroupLeader() == true) then
 							-- report joined queue with estimated time
 							CommFlare.CF.EstimatedWaitTime = 0
-							NS.CommunityFlare_Report_Joined_With_Estimated_Time()
+							NS.CommunityFlare_Report_Joined_With_Estimated_Time(index)
 						end
 					end
 				end)
@@ -1839,9 +1829,15 @@ function CommFlare:UPDATE_BATTLEFIELD_STATUS(msg, ...)
 		-- confirm?
 		elseif (status == "confirm") then
 			-- queue just popped?
-			if (CommFlare.CF.Queues[index] and (CommFlare.CF.Queues[index].popped ~= nil) and (CommFlare.CF.Queues[index].popped == 0)) then
+			if (CommFlare.CF.Queues[index] and CommFlare.CF.Queues[index].popped and (CommFlare.CF.Queues[index].popped == 0)) then
 				-- set popped
 				CommFlare.CF.Queues[index].popped = time()
+
+				-- mercenary?
+				local mercenary = ""
+				if (CommFlare.CF.Queues[index].mercenary == true) then
+					mercenary = "Mercenary "
+				end
 
 				-- port expiration not expired?
 				CommFlare.CF.Expiration = GetBattlefieldPortExpiration(index)
@@ -1850,56 +1846,64 @@ function CommFlare:UPDATE_BATTLEFIELD_STATUS(msg, ...)
 					if (CommFlare.db.profile.communityReporter == true) then
 						-- only report pops for group leaders
 						if (NS.CommunityFlare_IsGroupLeader() == true) then
-							-- is epic battleground?
-							local shouldReport = false
-							if (isEpicBattleground == true) then
-								-- report random epic battlegrounds option enabled?
-								if (CommFlare.db.profile.reportQueueRandomEpicBgs == true) then
-									shouldReport = true
-								end
-							-- is random battleground?
-							elseif (isRandomBattleground == true) then
-								-- report random battlegrounds option enabled?
-								if (CommFlare.db.profile.reportQueueRandomBgs == true) then
-									shouldReport = true
-								end
-							-- is brawl?
-							elseif (isBrawl == true) then
-								-- report brawls option enabled?
-								if (CommFlare.db.profile.reportQueueBrawls == true) then
-									shouldReport = true
-								end
-							end
-
-							-- should report?
-							if (shouldReport == true) then
-								-- mercenary?
-								local text = NS.CommunityFlare_GetGroupCount()
-								if (CommFlare.CF.Queues[index].mercenary == true) then
-									text = text .. " Mercenary Queue Popped for " .. mapName .. "!"
-								else
-									text = text .. " Queue Popped for " .. mapName .. "!"
-								end
-
-								-- send to community?
-								NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
-							end
+							-- popped
+							local count = NS.CommunityFlare_GetGroupCount()
+							text = count .. " " .. mercenary .. "Queue Popped for " .. mapName .. "!"
+							NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
 						end
 					end
 				-- port expired
 				else
 					-- clear queue
-					CommFlare.CF.Queues[index] = {}
+					print("Port Expired!")
+					CommFlare.CF.Queues[index] = nil
 				end
 			end
 		-- none?
 		elseif (status == "none") then
+			-- previously queued?
+			if (CommFlare.CF.Queues[index] and CommFlare.CF.Queues[index].popped) then
+				-- mercenary?
+				local text = ""
+				local mercenary = ""
+				if (CommFlare.CF.Queues[index].mercenary == true) then
+					mercenary = "Mercenary "
+				end
+
+				-- not popped?
+				if (CommFlare.CF.Queues[index].popped == 0) then
+					-- community reporter enabled?
+					if (CommFlare.db.profile.communityReporter == true) then
+						-- only report drops for group leaders
+						if (NS.CommunityFlare_IsGroupLeader() == true) then
+							-- dropped
+							local count = NS.CommunityFlare_GetGroupCount()
+							text = count .. " Dropped " .. mercenary .. "Queue for " .. mapName .. "!"
+							NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
+						end
+					end
+				-- popped?
+				elseif (CommFlare.CF.Queues[index].popped > 0) then
+					-- left
+					text = "Missed " .. mercenary .. "Queue for Popped " .. mapName .. "!"
+
+					-- are you in a party?
+					if (IsInGroup() and not IsInRaid()) then
+						-- send to party chat
+						NS.CommunityFlare_SendMessage(nil, text)
+					end
+
+					-- community reporter enabled?
+					if (CommFlare.db.profile.communityReporter == true) then
+						-- send to community?
+						NS.CommunityFlare_PopupBox("CommunityFlare_Send_Community_Dialog", text)
+					end
+				end
+			end
+
 			-- clear queue
-			CommFlare.CF.Queues[index] = {}
+			CommFlare.CF.Queues[index] = nil
 		end
-	else
-		-- clear queue
-		CommFlare.CF.Queues[index] = {}
 	end
 end
 
@@ -1927,7 +1931,6 @@ function CommFlare:OnEnable()
 	self:RegisterEvent("PARTY_INVITE_REQUEST")
 	self:RegisterEvent("PLAYER_ENTERING_WORLD")
 	self:RegisterEvent("PARTY_LEADER_CHANGED")
-	self:RegisterEvent("PLAYER_LOGIN")
 	self:RegisterEvent("PLAYER_LOGOUT")
 	self:RegisterEvent("PVP_MATCH_ACTIVE")
 	self:RegisterEvent("PVP_MATCH_COMPLETE")
@@ -1936,6 +1939,7 @@ function CommFlare:OnEnable()
 	self:RegisterEvent("READY_CHECK")
 	self:RegisterEvent("READY_CHECK_CONFIRM")
 	self:RegisterEvent("READY_CHECK_FINISHED")
+	self:RegisterEvent("SOCIAL_QUEUE_UPDATE")
 	self:RegisterEvent("UI_INFO_MESSAGE")
 	self:RegisterEvent("UNIT_SPELLCAST_START")
 	self:RegisterEvent("UPDATE_BATTLEFIELD_STATUS")
@@ -1955,7 +1959,7 @@ function CommFlare:OnDisable()
 	self:UnregisterEvent("CLUB_MEMBER_REMOVED")
 	self:UnregisterEvent("CLUB_MEMBER_UPDATED")
 	self:UnregisterEvent("GROUP_INVITE_CONFIRMATION")
-	self:UnregisterEVent("GROUP_JOINED")
+	self:UnregisterEvent("GROUP_JOINED")
 	self:UnregisterEvent("GROUP_LEFT")
 	self:UnregisterEvent("GROUP_ROSTER_UPDATE")
 	self:UnregisterEvent("INITIAL_CLUBS_LOADED")
@@ -1965,7 +1969,6 @@ function CommFlare:OnDisable()
 	self:UnregisterEvent("PARTY_INVITE_REQUEST")
 	self:UnregisterEvent("PARTY_LEADER_CHANGED")
 	self:UnregisterEvent("PLAYER_ENTERING_WORLD")
-	self:UnregisterEvent("PLAYER_LOGIN")
 	self:UnregisterEvent("PLAYER_LOGOUT")
 	self:UnregisterEvent("PVP_MATCH_ACTIVE")
 	self:UnregisterEvent("PVP_MATCH_COMPLETE")
@@ -1974,6 +1977,7 @@ function CommFlare:OnDisable()
 	self:UnregisterEvent("READY_CHECK")
 	self:UnregisterEvent("READY_CHECK_CONFIRM")
 	self:UnregisterEvent("READY_CHECK_FINISHED")
+	self:UnregisterEvent("SOCIAL_QUEUE_UPDATE")
 	self:UnregisterEvent("UI_INFO_MESSAGE")
 	self:UnregisterEvent("UNIT_SPELLCAST_START")
 	self:UnregisterEvent("UPDATE_BATTLEFIELD_STATUS")
@@ -2019,7 +2023,7 @@ end
 -- addon compartment on click
 function CommunityFlare_AddonCompartmentOnClick(addonName, buttonName)
 	-- already opened?
-	if SettingsPanel:IsShown() then
+	if (SettingsPanel:IsShown()) then
 		-- hide
 		SettingsPanel:Hide()
 	else

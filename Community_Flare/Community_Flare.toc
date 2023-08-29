@@ -1,6 +1,6 @@
 ## Interface: 100105
 ## Title: Community Flare
-## Version: v0.29
+## Version: v0.30-rc3
 ## Author: Mesostealthy
 ## SavedVariables: CommunityFlareDB
 ## OptionalDeps: Ace3
@@ -28,4 +28,5 @@ init.lua
 database.lua
 battlegrounds.lua
 options.lua
+social.lua
 main.lua
