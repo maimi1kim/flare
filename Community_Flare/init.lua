@@ -2,6 +2,7 @@ local ADDON_NAME, NS = ...
 
 -- localize stuff
 local _G                                        = _G
+local BNGetFriendIndex                          = _G.BNGetFriendIndex
 local BNSendWhisper                             = _G.BNSendWhisper
 local Chat_GetCommunitiesChannel                = _G.Chat_GetCommunitiesChannel
 local Chat_GetCommunitiesChannelName            = _G.Chat_GetCommunitiesChannelName
@@ -26,9 +27,12 @@ local UnitInParty                               = _G.UnitInParty
 local UnitIsGroupLeader                         = _G.UnitIsGroupLeader
 local UnitName                                  = _G.UnitName
 local AuraUtilForEachAura                       = _G.AuraUtil.ForEachAura
+local BattleNetGetFriendGameAccountInfo         = _G.C_BattleNet.GetFriendGameAccountInfo
+local BattleNetGetFriendNumGameAccounts         = _G.C_BattleNet.GetFriendNumGameAccounts
 local PvPIsBattleground                         = _G.C_PvP.IsBattleground
 local TimerAfter                                = _G.C_Timer.After
 local pairs                                     = _G.pairs
+local type                                      = _G.type
 local strformat                                 = _G.string.format
 local strgmatch                                 = _G.string.gmatch
 local strmatch                                  = _G.string.match
@@ -112,19 +116,19 @@ end
 -- promote player to party leader
 function NS.CommunityFlare_PromoteToPartyLeader(player)
 	-- is player full name in party?
-	if (UnitInParty(player) ~= nil) then
+	if (UnitInParty(player) == true) then
 		PromoteToLeader(player)
 		return true
 	end
 
 	-- try using short name
-	local name, realm = strsplit("-", player, 2)
+	local name, realm = strsplit("-", player)
 	if (realm == GetRealmName()) then
 		player = name
 	end
 
 	-- unit is in party?
-	if (UnitInParty(player) ~= nil) then
+	if (UnitInParty(player) == true) then
 		PromoteToLeader(player)
 		return true
 	end
@@ -184,6 +188,33 @@ function NS.CommunityFlare_SendMessage(sender, msg)
 	elseif (type(sender) == "number") then
 		BNSendWhisper(sender, msg)
 	end
+end
+
+-- get battle net character
+function NS.CommunityFlare_GetBNetFriendName(bnSenderID)
+	-- not number?
+	if (type(bnSenderID) ~= "number") then
+		-- failed
+		return nil
+	end
+
+	-- get bnet friend index
+	local index = BNGetFriendIndex(bnSenderID)
+	if (index ~= nil) then
+		-- process all bnet accounts logged in
+		local numGameAccounts = BattleNetGetFriendNumGameAccounts(index)
+		for i=1, numGameAccounts do
+			-- check if account has player guid online
+			local accountInfo = BattleNetGetFriendGameAccountInfo(index, i)
+			if (accountInfo.playerGuid) then
+				-- build full player-realm
+				return strformat("%s-%s", accountInfo.characterName, accountInfo.realmName)
+			end
+		end
+	end
+
+	-- failed
+	return nil
 end
 
 -- readd community chat window

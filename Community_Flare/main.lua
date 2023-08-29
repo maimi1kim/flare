@@ -114,6 +114,7 @@ CommFlare.CF = {
 	MapID = 0,
 	MatchStartTime = 0,
 	MatchStatus = 0,
+	MaxPriority = 999,
 	MercsCount = 0,
 	NumScores = 0,
 	PlayerRank = 0,
@@ -645,7 +646,7 @@ function CommFlare:Community_Flare_OnCommReceived(prefix, message, distribution,
 					local player = NS.CommunityFlare_GetFullName(sender)
 					if (unit and player) then
 						-- save / display version
-						local left, right = strsplit(':', message)
+						local left, right = strsplit(":", message)
 						CommFlare.CF.PartyVersions[unit] = right
 						print(player .. " has Community Flare " .. right)
 					end
@@ -685,6 +686,10 @@ function CommFlare:CHAT_MSG_BN_WHISPER(msg, ...)
 	if (text == "!cf") then
 		-- send community flare version number
 		NS.CommunityFlare_SendMessage(bnSenderID, strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
+	-- pass leadership?
+	elseif (text == "!pl") then
+		-- process pass leadership
+		NS.CommunityFlare_Process_Pass_Leadership(bnSenderID)
 	-- status check?
 	elseif (text == "!status") then
 		-- process status check
@@ -799,33 +804,8 @@ function CommFlare:CHAT_MSG_WHISPER(msg, ...)
 		NS.CommunityFlare_SendMessage(sender, strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
 	-- pass leadership?
 	elseif (text == "!pl") then
-		-- inside battleground?
-		if (PvPIsBattleground() == true) then
-			-- player is community leader?
-			local player = NS.CommunityFlare_GetPlayerName("full")
-			if (CommunityFlare_IsCommunityLeader(player) == false) then
-				-- does player have raid leadership?
-				CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
-				if (CommFlare.CF.PlayerRank == 2) then
-					-- sender is community leader?
-					if (CommunityFlare_IsCommunityLeader(sender) == true) then
-						NS.CommunityFlare_PromoteToRaidLeader(sender)
-					end
-				end
-			end
-		else
-			-- not sending to yourself?
-			local player = NS.CommunityFlare_GetPlayerName("full")
-			if (player ~= sender) then
-				-- player is not community leader?
-				if (CommunityFlare_IsCommunityLeader(player) ~= true) then
-					-- sender is community leader?
-					if (CommunityFlare_IsCommunityLeader(sender) == true) then
-						NS.CommunityFlare_PromoteToPartyLeader(sender)
-					end
-				end
-			end
-		end
+		-- process pass leadership
+		NS.CommunityFlare_Process_Pass_Leadership(sender)
 	-- status check?
 	elseif (text == "!status") then
 		-- process status check
@@ -1301,15 +1281,17 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 	local isInitialLogin, isReloadingUi = ...
 	if ((isInitialLogin) or (isReloadingUi)) then
 		-- display version
-		local version, subversion = strsplit('-', NS.CommunityFlare_Version)
-		local major, minor = strsplit('.', version)
+		local version, subversion = strsplit("-", NS.CommunityFlare_Version)
+		local major, minor = strsplit(".", version)
 		print(strformat("%s: %s", NS.CommunityFlare_Title, NS.CommunityFlare_Version))
 
 		-- load / initialize stuff
 		CommFlare.db.global = CommFlare.db.global or {}
 		CommFlare.db.global.members = CommFlare.db.global.members or {}
-		CommFlare.db.profile.communities = CommFlare.db.profile.communities or {}
 		CommFlare.db.profile.communityList = CommFlare.db.profile.communityList or {}
+
+		-- remove unused stuff
+		CommFlare.db.profile.communities = nil
 
 		-- add chat whisper filtering
 		ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", CommunityFlare_Chat_Whisper_Filter)

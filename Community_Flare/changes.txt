@@ -1,3 +1,10 @@
+v0.31 features:
+-Community Leaders can send command to obtain Raid Lead inside of a Battleground, or group lead outside of one.
+-Hopefully counts are working properly for the people it was not working for when doing /comf
+-Receiving whispers "INV" should work once again!
+-!status should be working once again!
+-/comf shows cross faction groups now.
+
 v0.30 features:
 -New setting to popup the PVP Queue Window if a Community Leader has just queued up for PVP.
 -New setting to Auto Queue/Ready Check if the party leader is your Battle.NET friend.

@@ -18,6 +18,7 @@ local IsInGroup                                 = _G.IsInGroup
 local IsInRaid                                  = _G.IsInRaid
 local PromoteToAssistant                        = _G.PromoteToAssistant
 local PromoteToLeader                           = _G.PromoteToLeader
+local UnitFactionGroup                          = _G.UnitFactionGroup
 local UnitInRaid                                = _G.UnitInRaid
 local UnitName                                  = _G.UnitName
 local UnitRealmRelationship                     = _G.UnitRealmRelationship
@@ -33,6 +34,7 @@ local GetDoubleStatusBarWidgetVisualizationInfo = _G.C_UIWidgetManager.GetDouble
 local GetIconAndTextWidgetVisualizationInfo     = _G.C_UIWidgetManager.GetIconAndTextWidgetVisualizationInfo
 local ipairs                                    = _G.ipairs
 local mfloor                                    = _G.math.floor
+local next                                      = _G.next
 local pairs                                     = _G.pairs
 local print                                     = _G.print
 local strformat                                 = _G.string.format
@@ -205,7 +207,7 @@ function NS.CommunityFlare_PromoteToRaidLeader(player)
 	end
 
 	-- try using short name
-	local name, realm = strsplit("-", player, 2)
+	local name, realm = strsplit("-", player)
 	if (realm == GetRealmName()) then
 		player = name
 	end
@@ -488,6 +490,7 @@ function NS.CommunityFlare_Process_Community_Members()
 	CommFlare.CF.CommCounts = {}
 	CommFlare.CF.CommNamesList = {}
 	CommFlare.CF.MercNamesList = {}
+	CommFlare.CF.PlayerFaction = UnitFactionGroup("player")
 	CommFlare.CF.PlayerInfo = PvPGetScoreInfoByPlayerGuid(UnitGUID("player"))
 	CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
 
@@ -509,7 +512,8 @@ function NS.CommunityFlare_Process_Community_Members()
 				elseif (CommFlare.CF.IsTank == true) then
 					CommFlare.CF.Alliance.Tanks = CommFlare.CF.Alliance.Tanks + 1
 				end
-			else
+			-- horde faction?
+			elseif (info.faction == 0) then
 				-- increase horde counts
 				CommFlare.CF.Horde.Count = CommFlare.CF.Horde.Count + 1
 				if (CommFlare.CF.IsHealer == true) then
@@ -530,22 +534,38 @@ function NS.CommunityFlare_Process_Community_Members()
 			local member = CommunityFlare_GetCommunityMember(player)
 			if (member ~= nil) then
 				-- counts setup?
-				clubId = member.clubId
+				clubId = next(member.clubs)
 				if (not CommFlare.CF.CommCounts[clubId]) then
 					-- initialize
 					CommFlare.CF.CommCounts[clubId] = 0
 				end
 
-				-- alliance?
-				if (info.faction == 1) then
-					-- update stuff
-					tinsert(CommFlare.CF.MercNamesList, info.name)
-					CommFlare.CF.MercsCount = CommFlare.CF.MercsCount + 1
-				else
-					-- update stuff
-					tinsert(CommFlare.CF.CommNamesList, info.name)
-					CommFlare.CF.CommCount = CommFlare.CF.CommCount + 1
-					CommFlare.CF.CommCounts[clubId] = CommFlare.CF.CommCounts[clubId] + 1
+				-- player is alliance?
+				if (CommFlare.CF.PlayerFaction == "Alliance") then
+					-- alliance?
+					if (info.faction == 1) then
+						-- update stuff
+						tinsert(CommFlare.CF.CommNamesList, info.name)
+						CommFlare.CF.CommCount = CommFlare.CF.CommCount + 1
+						CommFlare.CF.CommCounts[clubId] = CommFlare.CF.CommCounts[clubId] + 1
+					else
+						-- update stuff
+						tinsert(CommFlare.CF.MercNamesList, info.name)
+						CommFlare.CF.MercsCount = CommFlare.CF.MercsCount + 1
+					end
+				-- player is horde?
+				elseif (CommFlare.CF.PlayerFaction == "Horde") then
+					-- alliance?
+					if (info.faction == 1) then
+						-- update stuff
+						tinsert(CommFlare.CF.MercNamesList, info.name)
+						CommFlare.CF.MercsCount = CommFlare.CF.MercsCount + 1
+					else
+						-- update stuff
+						tinsert(CommFlare.CF.CommNamesList, info.name)
+						CommFlare.CF.CommCount = CommFlare.CF.CommCount + 1
+						CommFlare.CF.CommCounts[clubId] = CommFlare.CF.CommCounts[clubId] + 1
+					end
 				end
 
 				-- player has raid leader?
@@ -601,81 +621,156 @@ function NS.CommunityFlare_Battleground_Setup(isPrint)
 		-- display faction results
 		print(strformat("Horde: Healers = %d, Tanks = %d", CommFlare.CF.Horde.Healers, CommFlare.CF.Horde.Tanks))
 		print(strformat("Alliance: Healers = %d, Tanks = %d", CommFlare.CF.Alliance.Healers, CommFlare.CF.Alliance.Tanks))
+	end
 
-		-- has mercenaries?
-		if (CommFlare.CF.MercsCount > 0) then
-			-- display community names?
-			if (CommFlare.db.profile.communityDisplayNames == true) then
-				-- build mercenary list
-				local list = nil
-				for k,v in pairs(CommFlare.CF.MercNamesList) do
-					-- list still empty? start it!
-					if (list == nil) then
-						list = v
-					else
-						list = list .. ", " .. v
-					end
+	-- has mercenaries?
+	if (CommFlare.CF.MercsCount > 0) then
+		-- display community names?
+		if (CommFlare.db.profile.communityDisplayNames == true) then
+			-- build mercenary list
+			local list = nil
+			for k,v in pairs(CommFlare.CF.MercNamesList) do
+				-- list still empty? start it!
+				if (list == nil) then
+					list = v
+				else
+					list = list .. ", " .. v
 				end
+			end
 
-				-- found merc list?
-				if (list ~= nil) then
+			-- found merc list?
+			if (list ~= nil) then
+				-- should print?
+				if (isPrint == true) then
 					-- display community mercenaries
 					print("Community Mercenaries: ", list)
 				end
 			end
-
-			-- display mercs count
-			print("Total Mercenaries: ", CommFlare.CF.MercsCount)
 		end
 
-		-- has community players?
-		if (CommFlare.CF.CommCount > 0) then
-			-- display community names?
-			if (CommFlare.db.profile.communityDisplayNames == true) then
-				-- build member list
-				local list = nil
-				for k,v in pairs(CommFlare.CF.CommNamesList) do
-					-- list still empty? start it!
-					if (list == nil) then
-						list = v
-					else
-						list = list .. ", " .. v
-					end
-				end
+		-- display mercs count
+		print("Total Mercenaries: ", CommFlare.CF.MercsCount)
+	end
 
-				-- found list?
-				if (list ~= nil) then
-					-- display community members
-					print("Community Members: ", list)
-				end
-			end
-		end
-
-		-- found community counts?
-		if (CommFlare.CF.CommCounts and next(CommFlare.CF.CommCounts)) then
-			-- build count list
+	-- has community players?
+	if (CommFlare.CF.CommCount > 0) then
+		-- display community names?
+		if (CommFlare.db.profile.communityDisplayNames == true) then
+			-- build member list
 			local list = nil
-			for k,v in pairs(CommFlare.CF.CommCounts) do
-				-- has community?
-				if (CommFlare.db.profile.communities[k] and CommFlare.db.profile.communities[k].name) then
-					-- add to list
-					if (list == nil) then
-						list = CommFlare.db.profile.communities[k].name .. " = " .. v
-					else
-						list = list .. ", " .. CommFlare.db.profile.communities[k].name .. " = " .. v
-					end
+			for k,v in pairs(CommFlare.CF.CommNamesList) do
+				-- list still empty? start it!
+				if (list == nil) then
+					list = v
+				else
+					list = list .. ", " .. v
 				end
 			end
 
 			-- found list?
 			if (list ~= nil) then
+				-- should print?
+				if (isPrint == true) then
+					-- display community members
+					print("Community Members: ", list)
+				end
+			end
+		end
+	end
+
+	-- found community counts?
+	if (CommFlare.CF.CommCounts and next(CommFlare.CF.CommCounts)) then
+		-- build count list
+		local list = nil
+		for k,v in pairs(CommFlare.CF.CommCounts) do
+			-- has community?
+			if (CommFlare.db.global.clubs[k] and CommFlare.db.global.clubs[k].name) then
+				-- add to list
+				if (list == nil) then
+					list = CommFlare.db.global.clubs[k].name .. " = " .. v
+				else
+					list = list .. ", " .. CommFlare.db.global.clubs[k].name .. " = " .. v
+				end
+			end
+		end
+
+		-- found list?
+		if (list ~= nil) then
+			-- should print?
+			if (isPrint == true) then
 				-- display community counts
 				print("Community Counts: ", list)
 			end
 		end
+	end
 
-		-- display community count
-		print("Total Members: ", CommFlare.CF.CommCount)
+	-- display community count
+	print("Total Members: ", CommFlare.CF.CommCount)
+end
+
+-- process pass leadership
+function NS.CommunityFlare_Process_Pass_Leadership(sender)
+	-- setup player / sender
+	local player = NS.CommunityFlare_GetPlayerName("full")
+	if (type(sender) == "number") then
+		-- get from battle net
+		sender = NS.CommunityFlare_GetBNetFriendName(sender)
+	-- no realm name?
+	elseif (not strmatch(sender, "-")) then
+		-- add realm name
+		sender = sender .. "-" .. GetRealmName()
+	end
+
+	-- inside battleground?
+	if (PvPIsBattleground() == true) then
+		-- player is not community leader?
+		if (CommunityFlare_IsCommunityLeader(player) == false) then
+			-- does player have raid leadership?
+			CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
+			if (CommFlare.CF.PlayerRank == 2) then
+				-- sender is community leader?
+				if (CommunityFlare_IsCommunityLeader(sender) == true) then
+					NS.CommunityFlare_PromoteToRaidLeader(sender)
+				end
+			end
+		end
+	else
+		-- not sending to yourself?
+		local shouldPromote = false
+		if (player ~= sender) then
+			-- get player / member
+			player = CommunityFlare_GetCommunityMember(player)
+			local member = CommunityFlare_GetCommunityMember(sender)
+			if (member) then
+				-- player not member?
+				if (not player) then
+					-- should promote
+					shouldPromote = true
+				else
+					-- no member priority?
+					if (not member.priority or (member.priority == 0)) then
+						member.priority = 999
+					end
+
+					-- no player priority?
+					if (not player.priority or (player.priority == 0)) then
+						player.priority = 999
+					end
+
+					-- higher priority?
+					if (member.priority < player.priority) then
+						-- should promote
+						shouldPromote = true
+					end
+				end
+			end
+
+			-- should promote?
+			if (shouldPromote == true) then
+				-- promote to party leader
+				NS.CommunityFlare_PromoteToPartyLeader(sender)
+			end
+		end
 	end
 end
 
@@ -685,16 +780,14 @@ function NS.CommunityFlare_Process_Status_Check(sender)
 	if (PvPIsBattleground() == true) then
 		-- update battleground status
 		local text = nil
-		if (NS.CommunityFlare_Update_Battleground_Status() == true) then
-			-- has match started yet?
-			local text = nil
-			if (PvPGetActiveMatchDuration() > 0) then
-				-- community count not loaded yet?
-				if (CommFlare.CF.CommCount == 0) then
-					-- process battleground stuff / counts
-					NS.CommunityFlare_Battleground_Setup(false)
-				end
+		local status = NS.CommunityFlare_Update_Battleground_Status()
+		if (status == true) then
+			-- process battleground stuff / counts
+			NS.CommunityFlare_Battleground_Setup(false)
 
+			-- has match started yet?
+			local duration = PvPGetActiveMatchDuration()
+			if (duration > 0) then
 				-- calculate time elapsed
 				CommFlare.CF.Timer.MilliSeconds = GetBattlefieldInstanceRunTime()
 				CommFlare.CF.Timer.Seconds = mfloor(CommFlare.CF.Timer.MilliSeconds / 1000)
@@ -719,12 +812,6 @@ function NS.CommunityFlare_Process_Status_Check(sender)
 					text = strformat("%s: Time Elapsed = %d minutes, %d seconds; Alliance = %s; Horde = %s; Jeron = %s; Rylai = %s; %d Community Members", CommFlare.CF.MapInfo.name, CommFlare.CF.Timer.Minutes, CommFlare.CF.Timer.Seconds, CommFlare.CF.ASH.Scores.Alliance, CommFlare.CF.ASH.Scores.Horde, CommFlare.CF.ASH.Jeron, CommFlare.CF.ASH.Rylai, CommFlare.CF.CommCount)
 				end
 			else
-				-- count not loaded yet?
-				if (CommFlare.CF.CommCount == 0) then
-					-- process community members
-					NS.CommunityFlare_Process_Community_Members()
-				end
-
 				-- set text to gates not opened yet
 				text = strformat("%s: Just entered match. Gates not opened yet! (%d Community Members.)", CommFlare.CF.MapInfo.name, CommFlare.CF.CommCount)
 			end
@@ -734,7 +821,7 @@ function NS.CommunityFlare_Process_Status_Check(sender)
 		end
 
 		-- has text to send?
-		if (text) then
+		if (text and (text ~= "")) then
 			-- add to table for later
 			CommFlare.CF.StatusCheck[sender] = time()
 
