@@ -100,7 +100,7 @@ function NS.CommunityFlare_Update_Group(groupGUID, canJoin, numQueues, leaderGUI
 				CommFlare.CF.SocialQueues[groupGUID].numTrackedQueues = numTrackedQueues
 
 				-- are they community leader?
-				if (CommunityFlare_IsCommunityLeader(leader) == true) then
+				if (NS.CommunityFlare_IsCommunityLeader(leader) == true) then
 					-- only process for group leaders
 					if (NS.CommunityFlare_IsGroupLeader() == true) then
 						-- popup queue window enabled?

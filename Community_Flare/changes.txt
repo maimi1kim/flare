@@ -1,3 +1,12 @@
+v0.32 features:
+-Selecting None for Main Community will not clear database, only removes previous clubs added.
+-Tome of Town Portal added to warning if you try to use it in an active Battleground.
+-Astral Recall added to warning if you try to use it in an active Battleground.
+-Community Database is automatically cleaned up and refreshed.
+-Verifies leader/owner/priority status for database.
+-/comf refresh cleans up database manually.
+-Bumped TOC to v10.1.7
+
 v0.31 features:
 -Community Leaders can send command to obtain Raid Lead inside of a Battleground, or group lead outside of one.
 -Hopefully counts are working properly for the people it was not working for when doing /comf

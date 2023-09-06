@@ -595,8 +595,9 @@ function CommFlare:Community_Flare_SlashCommand(input)
 		-- list all POI's
 		CommunityFlare_List_POIs()
 	elseif (input == "refresh") then
-		-- process club members
-		NS.CommunityFlare_Process_Club_Members()
+		-- refresh club members
+		CommFlare.db.profile.communityRefreshed = 0
+		NS.CommunityFlare_Refresh_Club_Members()
 		print(strformat("Refreshed members databased! %d members found.", NS.CommunityFlare_GetMemberCount()))
 	elseif (input == "reset") then
 		-- reset members database
@@ -1088,8 +1089,8 @@ function CommFlare:INITIAL_CLUBS_LOADED(msg)
 		TimerAfter(5, NS.CommunityFlare_ReaddChannelsInitialLoad)
 	end
 
-	-- process club members after 5 seconds
-	TimerAfter(5, NS.CommunityFlare_Process_Club_Members)
+	-- refresh club members
+	NS.CommunityFlare_Refresh_Club_Members()
 end
 
 -- process lfg role check role chosen
@@ -1330,8 +1331,8 @@ function CommFlare:PLAYER_ENTERING_WORLD(msg, ...)
 			-- setup main community list
 			NS.CommunityFlare_Setup_Main_Community_List(nil)
 
-			-- process club members after 5 seconds
-			TimerAfter(5, NS.CommunityFlare_Process_Club_Members)
+			-- refresh club members
+			TimerAfter(5, NS.CommunityFlare_Refresh_Club_Members)
 		else
 			-- disable community party leader
 			CommFlare.db.profile.communityPartyLeader = false

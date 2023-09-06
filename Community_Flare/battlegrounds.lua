@@ -531,7 +531,7 @@ function NS.CommunityFlare_Process_Community_Members()
 			end
 
 			-- get community member
-			local member = CommunityFlare_GetCommunityMember(player)
+			local member = NS.CommunityFlare_GetCommunityMember(player)
 			if (member ~= nil) then
 				-- counts setup?
 				clubId = next(member.clubs)
@@ -570,15 +570,23 @@ function NS.CommunityFlare_Process_Community_Members()
 
 				-- player has raid leader?
 				if (CommFlare.CF.PlayerRank == 2) then
+					-- only allow leaders?
 					CommFlare.CF.AutoPromote = false
 					if (CommFlare.db.profile.communityAutoAssist == 2) then
-						if (CommunityFlare_IsCommunityLeader(player) == true) then
+						-- player is community leader?
+						if (NS.CommunityFlare_IsCommunityLeader(player) == true) then
+							-- auto promote
 							CommFlare.CF.AutoPromote = true
 						end
+					-- allow all members?
 					elseif (CommFlare.db.profile.communityAutoAssist == 3) then
+						-- auto promote
 						CommFlare.CF.AutoPromote = true
 					end
+
+					-- auto promote?
 					if (CommFlare.CF.AutoPromote == true) then
+						-- promote
 						PromoteToAssistant(info.name)
 					end
 				end
@@ -724,12 +732,13 @@ function NS.CommunityFlare_Process_Pass_Leadership(sender)
 	-- inside battleground?
 	if (PvPIsBattleground() == true) then
 		-- player is not community leader?
-		if (CommunityFlare_IsCommunityLeader(player) == false) then
+		if (NS.CommunityFlare_IsCommunityLeader(player) == false) then
 			-- does player have raid leadership?
 			CommFlare.CF.PlayerRank = NS.CommunityFlare_GetRaidRank(UnitName("player"))
 			if (CommFlare.CF.PlayerRank == 2) then
 				-- sender is community leader?
-				if (CommunityFlare_IsCommunityLeader(sender) == true) then
+				if (NS.CommunityFlare_IsCommunityLeader(sender) == true) then
+					-- promote
 					NS.CommunityFlare_PromoteToRaidLeader(sender)
 				end
 			end
@@ -739,8 +748,8 @@ function NS.CommunityFlare_Process_Pass_Leadership(sender)
 		local shouldPromote = false
 		if (player ~= sender) then
 			-- get player / member
-			player = CommunityFlare_GetCommunityMember(player)
-			local member = CommunityFlare_GetCommunityMember(sender)
+			player = NS.CommunityFlare_GetCommunityMember(player)
+			local member = NS.CommunityFlare_GetCommunityMember(sender)
 			if (member) then
 				-- player not member?
 				if (not player) then

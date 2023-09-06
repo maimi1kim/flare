@@ -18,11 +18,104 @@ local select                                    = _G.select
 local strformat                                 = _G.string.format
 local strmatch                                  = _G.string.match
 local strsplit                                  = _G.string.split
+local time                                      = _G.time
 local tinsert                                   = _G.table.insert
 local tonumber                                  = _G.tonumber
 local tsort                                     = _G.table.sort
 local type                                      = _G.type
 local wipe                                      = _G.wipe
+
+-- is community leader?
+function NS.CommunityFlare_IsCommunityLeader(name)
+	-- invalid name?
+	local player = name
+	if (not player or (player == "")) then
+		-- failed
+		return false
+	end
+
+	-- build proper name
+	if (not strmatch(player, "-")) then
+		-- add realm name
+		player = player .. "-" .. GetRealmName()
+	end
+
+	-- process all leaders
+	for _,v in ipairs(CommFlare.CF.CommunityLeaders) do
+		-- matches?
+		if (player == v) then
+			-- success
+			return true
+		end
+	end
+
+	-- failed
+	return false
+end
+
+-- get community member
+function NS.CommunityFlare_GetCommunityMember(name)
+	-- invalid name?
+	local player = name
+	if (not player or (player == "")) then
+		-- failed
+		return nil
+	end
+
+	-- build proper name
+	if (not strmatch(player, "-")) then
+		-- add realm name
+		player = player .. "-" .. GetRealmName()
+	end
+
+	-- check inside database first
+	if (player and (player ~= "") and CommFlare.db.global and CommFlare.db.global.members and CommFlare.db.global.members[player]) then
+		-- success
+		return CommFlare.db.global.members[player]
+	end
+
+	-- failed
+	return nil
+end
+
+-- clean up members
+function NS.CommunityFlare_CleanUpMembers()
+	-- sanity checks?
+	if (not CommFlare.db.global) then
+		-- initialize
+		CommFlare.db.global = {}
+	end
+	if (not CommFlare.db.global.members) then
+		-- initialize
+		CommFlare.db.global.members = {}
+	end
+
+	-- process all members
+	local removed = 0
+	for k,v in pairs(CommFlare.db.global.members) do
+		-- check for leader / owner
+		local player = v.name
+		for k2,v2 in pairs(CommFlare.db.global.members[player].clubs) do
+			-- owner?
+			if (v2.role == Enum.ClubRoleIdentifier.Owner) then
+				-- leader
+				CommFlare.db.global.members[player].owner = true
+				v.owner = true
+			-- leader?
+			elseif (v2.role == Enum.ClubRoleIdentifier.Leader) then
+				-- leader
+				CommFlare.db.global.members[player].leader = true
+				v.leader = true
+			end
+		end
+
+		-- not leader or owner?
+		if ((not v.leader or (v.leader == false)) and (not v.owner or (v.owner == false))) then
+			-- reset priority
+			CommFlare.db.global.members[player].priority = CommFlare.CF.MaxPriority
+		end
+	end
+end
 
 -- rebuild community leaders
 function NS.CommunityFlare_RebuildCommunityLeaders()
@@ -35,26 +128,54 @@ function NS.CommunityFlare_RebuildCommunityLeaders()
 	for k,v in pairs(CommFlare.db.global.members) do
 		-- owner?
 		if (v.owner) then
-			-- add first
-			CommFlare.CF.CommunityLeaders[count] = v.name
+			-- always verify leader status
+			local player = v.name
+			CommFlare.db.global.members[player].owner = nil
+			for k2,v2 in pairs(CommFlare.db.global.members[player].clubs) do
+				-- owner?
+				if (v2.role == Enum.ClubRoleIdentifier.Owner) then
+					-- leader
+					CommFlare.db.global.members[player].owner = true
+				end
+			end
 
-			-- next
-			count = count + 1
+			-- currently has owner role somewhere?
+			if (CommFlare.db.global.members[player].owner == true) then
+				-- add first
+				CommFlare.CF.CommunityLeaders[count] = v.name
+
+				-- next
+				count = count + 1
+			end
 		-- leader?
 		elseif (v.leader) then
-			-- has priority?
-			if (v.priority and (v.priority > 0) and (v.priority < CommFlare.CF.MaxPriority)) then
-				-- not created?
-				if (not orderedLeaders[v.priority]) then
-					-- create table
-					orderedLeaders[v.priority] = {}
+			-- always verify leader status
+			local player = v.name
+			CommFlare.db.global.members[player].leader = nil
+			for k2,v2 in pairs(CommFlare.db.global.members[player].clubs) do
+				-- leader?
+				if (v2.role == Enum.ClubRoleIdentifier.Leader) then
+					-- leader
+					CommFlare.db.global.members[player].leader = true
 				end
+			end
 
-				-- add to ordered leaders
-				tinsert(orderedLeaders[v.priority], v.name)
-			else
-				-- add to unordered leaders
-				tinsert(unorderedLeaders, v.name)
+			-- currently has leader role somewhere?
+			if (CommFlare.db.global.members[player].leader == true) then
+				-- has priority?
+				if (v.priority and (v.priority > 0) and (v.priority < CommFlare.CF.MaxPriority)) then
+					-- not created?
+					if (not orderedLeaders[v.priority]) then
+						-- create table
+						orderedLeaders[v.priority] = {}
+					end
+
+					-- add to ordered leaders
+					tinsert(orderedLeaders[v.priority], v.name)
+				else
+					-- add to unordered leaders
+					tinsert(unorderedLeaders, v.name)
+				end
 			end
 		end
 	end
@@ -470,7 +591,7 @@ function NS.CommunityFlare_Process_Club_Members()
 		name = CommFlare.db.profile.communityMainName
 	end
 
-	-- find main community members
+	-- find main community club
 	local clubs = {}
 	local clubId = NS.CommunityFlare_FindClubID(name)
 	if (clubId > 0) then
@@ -525,6 +646,53 @@ function NS.CommunityFlare_Process_Club_Members()
 			NS.CommunityFlare_ReaddCommunityChatWindow(CommFlare.db.profile.communityReportID, 1)
 		end
 	end
+end
+
+-- refresh club members
+function NS.CommunityFlare_Refresh_Club_Members()
+	-- process club members
+	NS.CommunityFlare_Process_Club_Members()
+
+	-- find player in database
+	local player = NS.CommunityFlare_GetPlayerName("full")
+	local member = NS.CommunityFlare_GetCommunityMember(player)
+	if (not member or not member.clubs) then
+		-- finished
+		return
+	end
+
+	-- needs refreshing?
+	local refresh = false
+	if (CommFlare.db.profile.communityRefreshed == 0) then
+		-- refresh
+		refresh = true
+	elseif (CommFlare.db.profile.communityRefreshed > 0) then
+		-- refreshed more than 7 days ago?
+		local next_refresh = CommFlare.db.profile.communityRefreshed + (7 * 86400)
+		if (time() > next_refresh) then
+			-- refresh
+			refresh = true
+		end
+	end
+
+	-- needs refreshing?
+	if (refresh == true) then
+		-- process all clubs
+		for k,v in pairs(member.clubs) do
+			-- remove all club members
+			local clubId = v.id
+			NS.CommunityFlare_RemoveAllClubMembersByClubID(clubId)
+
+			-- add all club members
+			NS.CommunityFlare_AddAllClubMembersByClubID(clubId)
+		end
+
+		-- save refresh date
+		CommFlare.db.profile.communityRefreshed = time()
+	end
+
+	-- clean up members
+	NS.CommunityFlare_CleanUpMembers()
 end
 
 -- club member added
@@ -659,13 +827,24 @@ function NS.CommunityFlare_FindExCommunityMembers(clubId)
 	-- process all
 	local removed = {}
 	for k,v in pairs(CommFlare.db.global.members) do
-		-- matches?
-		if (v.clubId == clubId) then
+		-- process clubs
+		local matched = false
+		for k2,v2 in pairs(v.clubs) do
+			-- matches?
+			if (clubId == v2.id) then
+				-- matched
+				matched = true
+			end
+		end
+
+		-- matched?
+		if (matched == true) then
 			-- not found in current?
 			if (not current[k]) then
 				-- add removed
 				removed[k] = k
 				count = count + 1
+				print("Not Member: ", v.name)
 			end
 		end
 	end
@@ -678,34 +857,6 @@ function NS.CommunityFlare_FindExCommunityMembers(clubId)
 
 	-- display count
 	print("Count: ", count)
-end
-
--- is community leader? (yes, intended to be global)
-function CommunityFlare_IsCommunityLeader(name)
-	-- invalid name?
-	local player = name
-	if (not player or (player == "")) then
-		-- failed
-		return false
-	end
-
-	-- build proper name
-	if (not strmatch(player, "-")) then
-		-- add realm name
-		player = player .. "-" .. GetRealmName()
-	end
-
-	-- process all leaders
-	for _,v in ipairs(CommFlare.CF.CommunityLeaders) do
-		-- matches?
-		if (player == v) then
-			-- success
-			return true
-		end
-	end
-
-	-- failed
-	return false
 end
 
 -- is community member? (yes, intended to be global)
@@ -731,35 +882,6 @@ function CommunityFlare_IsCommunityMember(name)
 
 	-- failed
 	return false
-end
-
--- get community member (yes, intended to be global)
-function CommunityFlare_GetCommunityMember(name)
-	-- invalid name?
-	local player = name
-	if (not player or (player == "")) then
-		-- failed
-		return nil
-	end
-
-	-- build proper name
-	if (not strmatch(player, "-")) then
-		-- add realm name
-		player = player .. "-" .. GetRealmName()
-	end
-
-	-- check inside database first
-	if (player and (player ~= "") and CommFlare.db.global and CommFlare.db.global.members and CommFlare.db.global.members[player]) then
-		-- success
-		return CommFlare.db.global.members[player]
-	end
-
-	-- failed
-	return nil
-end
-
--- get first club id
-function CommunityFlare_GetFirstMemberClub(member)
 end
 
 -- find member by GUID (yes, intended to be global)

@@ -117,25 +117,49 @@ end
 
 -- set main community
 function NS.CommunityFlare_Set_Main_Community(info, value)
-	-- save value
-	CommFlare.db.profile.communityMain = value
-
 	-- has club id to add for?
 	if (value and (value > 1)) then
 		-- add all club members
 		NS.CommunityFlare_AddAllClubMembersByClubID(value)
 
 		-- set default report ID
-		CommFlare.db.profile.communityReportID = CommFlare.db.profile.communityMain
+		CommFlare.db.profile.communityReportID = value
 
 		-- readd community chat window
 		NS.CommunityFlare_ReaddCommunityChatWindow(CommFlare.db.profile.communityReportID, 1)
 	else
-		-- clear community leaders
-		CommFlare.db.global.members = {}
-		CommFlare.CF.CommunityLeaders = {}
+
+		-- find main community club
+		local clubs = {}
+		if (CommFlare.db.profile.communityMain > 0) then
+			-- add club id
+			tinsert(clubs, CommFlare.db.profile.communityMain)
+		end
+
+		-- has community list?
+		if (CommFlare.db.profile.communityList and (next(CommFlare.db.profile.communityList) ~= nil)) then
+			-- process all lists
+			for k,_ in pairs(CommFlare.db.profile.communityList) do
+				-- add club id
+				tinsert(clubs, k)
+			end
+		end
+
+		-- process clubs
+		for _,clubId in ipairs(clubs) do
+			-- remove all club members
+			NS.CommunityFlare_RemoveAllClubMembersByClubID(clubId)
+		end
+
+		-- rebuild community leaders
+		NS.CommunityFlare_RebuildCommunityLeaders()
+
+		-- clear community report id
 		CommFlare.db.profile.communityReportID = 1
 	end
+
+	-- save main community
+	CommFlare.db.profile.communityMain = value
 
 	-- always clear community list
 	CommFlare.db.profile.communityList = {}
@@ -387,6 +411,7 @@ NS.defaults = {
 		communityMainName = "",
 		communityList = {},
 		communityReportID = 0,
+		communityRefreshed = 0,
 		membersCount = "",
 
 		-- tables

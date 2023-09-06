@@ -568,6 +568,7 @@ NS.HearthStoneSpells = {
 	[136508] = "Dark Portal",
 	[171253] = "Garrison Hearthstone",
 	[222695] = "Dalaran Hearthstone",
+	[231504] = "Tome of Town Portal",
 	[278244] = "Greatfather Winter's Hearthstone",
 	[278559] = "Headless Horseman's Hearthstone",
 	[285362] = "Lunar Elder's Hearthstone",
@@ -590,6 +591,7 @@ NS.HearthStoneSpells = {
 
 -- teleport spells
 NS.TeleportSpells = {
+	[556] = "Astral Recall",
 	[3561] = "Teleport: Stormwind",
 	[3562] = "Teleport: Ironforge",
 	[3563] = "Teleport: Undercity",
